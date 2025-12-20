@@ -18,7 +18,6 @@ class MainWidget(QWidget):
         self.setFixedSize(250, 90)
         self.setWindowFlags(self.windowFlags() | Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint  | Qt.WindowType.WindowStaysOnTopHint)
         self.setAttribute(Qt.WA_TranslucentBackground)
-        # 移除这里的置顶设置，移到showEvent中
         # 主布局
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -37,7 +36,7 @@ class MainWidget(QWidget):
         # 鼠标拖动相关
         self.drag_position = QPoint()
         
-        # 定时器更新时间数据（始终运行）
+        # 定时器更新时间数据
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_time_data)
         self.timer.start(1000)  # 每秒更新一次
@@ -52,7 +51,6 @@ class MainWidget(QWidget):
     
     def showEvent(self, event: QShowEvent):
         super().showEvent(event)
-        # 在窗口显示后设置置顶
         self.raise_()
         self.activateWindow()
         self.force_foreground()
@@ -65,6 +63,7 @@ class MainWidget(QWidget):
                 ctypes.windll.user32.SetForegroundWindow(hwnd)
             except Exception as e:
                 print("无法强制窗口到前台:", e)
+                
     def get_todo_height(self):
         return self.todo_panel.height() if self.todo_panel.isVisible() else 0
         
@@ -120,7 +119,6 @@ class MainWidget(QWidget):
             pass
 
     def update_time_data(self):
-        """更新时间数据（始终运行）"""
         self.performance_panel.update_time_data()
         if not self.performance_panel.performance_mode:
             self.performance_panel.update()

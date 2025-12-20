@@ -11,7 +11,7 @@ class SystemTrayIcon(QSystemTrayIcon):
         # 创建上下文菜单
         self.menu = QMenu()
         
-        self.performance_action = QAction("Performance monitoring mode", None)
+        self.performance_action = QAction("性能监控模式", None)
         self.performance_action.setCheckable(True)
         self.performance_action.triggered.connect(self.toggle_performance_mode)
         self.menu.addAction(self.performance_action)
