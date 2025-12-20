@@ -61,20 +61,6 @@ SMT2 是一个基于 Python 和 PySide6 开发的轻量级桌面应用程序，�
 python -m nuitka --onefile --windows-console-mode=disable --enable-plugin=pyside6 --follow-import-to=need --output-dir=output --windows-icon-from-ico=resources/tray.png --windows-uac-admin main.py
 ```
 
-## 项目结构
-
-```
-SMT2/ 
-├── main.py # 应用入口文件 
-├── resources/ # 资源文件目录 
-│ ├── tray.png # 系统托盘图标 
-│ └── todos.json # 待办事项数据文件 
-├── src/ # 源代码目录 
-│ ├── components/ # UI组件 
-│ └── utils/ # 工具类 
-└── output/ # 打包输出目录
-```
-
 ## 注意事项
 
 - 该应用只有在Windows环境测试过，不保证对其他环境的支持
