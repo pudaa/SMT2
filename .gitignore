@@ -39,3 +39,7 @@ history/
 
 # Environment files
 .env
+
+
+# Privacy files
+resources/todos.json

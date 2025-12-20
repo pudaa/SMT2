@@ -5,7 +5,7 @@ from PySide6.QtGui import QAction, QIcon, QPixmap, QColor
 class SystemTrayIcon(QSystemTrayIcon):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setIcon(QIcon("tray.png"))
+        self.setIcon(QIcon("resources/tray.png"))
         self.setToolTip("时间进度追踪")
         
         # 创建上下文菜单
