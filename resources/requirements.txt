@@ -1,0 +1,3 @@
+pip install jieba
+pip install pyside6
+pip install wmi
