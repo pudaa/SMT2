@@ -13,7 +13,7 @@ class PerformancePanel(QWidget):
         # 性能数据
         self.cpu_percent = 0
         self.memory_percent = 0
-        self.gpu_percent = 0
+        self.disk_percent = 0
         self.battery_percent = 100
         
         # 时间进度数据
@@ -53,7 +53,7 @@ class PerformancePanel(QWidget):
             # 绘制性能指标
             self.draw_progress_ring(painter, 10, self.cpu_percent, "CPU", "CPU")
             self.draw_progress_ring(painter, 70, self.memory_percent, "内存", "内存")
-            self.draw_progress_ring(painter, 130, self.gpu_percent, "GPU", "GPU")
+            self.draw_progress_ring(painter, 130, self.disk_percent, "C盘", "C盘")
             self.draw_progress_ring(painter, 190, self.battery_percent, "电池", "电池")
         else:
             # 绘制时间进度
@@ -122,7 +122,7 @@ class PerformancePanel(QWidget):
         if self.performance_mode:
             self.cpu_percent = PerformanceMonitor.get_cpu_percent()
             self.memory_percent = PerformanceMonitor.get_memory_percent()
-            self.gpu_percent = PerformanceMonitor.get_gpu_percent()
+            self.disk_percent = PerformanceMonitor.get_disk_percent()[0]
             self.battery_percent = PerformanceMonitor.get_battery_percent()
             self.update()
             
