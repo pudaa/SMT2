@@ -15,6 +15,7 @@ import ctypes
 class MainWidget(QWidget):
     def __init__(self):
         super().__init__()
+        self.setWindowTitle("SMT2") 
         self.setFixedSize(250, 90)
         self.setWindowFlags(self.windowFlags() | Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint  | Qt.WindowType.WindowStaysOnTopHint)
         self.setAttribute(Qt.WA_TranslucentBackground)
