@@ -70,7 +70,6 @@ class WindowPinner:
             # 获取窗口类名，过滤系统窗口
             try:
                 class_name = win32gui.GetClassName(hwnd)
-                # 允许浏览器窗口类名，包括现代浏览器使用的类名
                 allowed_browser_classes = [
                     'Chrome_WidgetWin_1',  # Chrome, Edge经典版等
                     'MozillaWindowClass',  # Firefox
@@ -148,11 +147,9 @@ class WindowPinner:
     def cleanup_invalid_windows(self):
         """清理不存在的窗口记录"""
         current_windows = set(hwnd for hwnd, _ in self.iter_visible_windows())
-        # 清理不存在的窗口的回调函数缓存
         for hwnd in list(self.menu_callbacks.keys()):
             if hwnd not in current_windows:
                 del self.menu_callbacks[hwnd]
-        # 清理不存在的窗口的置顶状态
         for hwnd in list(self.topped.keys()):
             if hwnd not in current_windows:
                 del self.topped[hwnd]

@@ -37,7 +37,7 @@ class TodoItemWidget(QWidget): # 单个待办事项组件
     def __init__(self, text="", parent=None):
         super().__init__(parent)
         self.content_text = text
-        self.setFixedHeight(35)
+        self.setFixedHeight(32)
         self.setStyleSheet("""
             QToolTip {
                 color: #ccc;
@@ -62,7 +62,7 @@ class TodoItemWidget(QWidget): # 单个待办事项组件
         self.is_dragging = False
         
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(5, 5, 5, 5)
+        layout.setContentsMargins(0, 2, 0, 2)
         layout.setSpacing(5)
         
         self.checkbox = QCheckBox()
@@ -103,7 +103,7 @@ class TodoItemWidget(QWidget): # 单个待办事项组件
         self.handle_text_show()
         
         self.drag_label = QLabel("  ☰  ")
-        self.drag_label.setStyleSheet("color: #888; font-weight: bold;")
+        self.drag_label.setStyleSheet("color: #888; font-size: 14px; font-weight: bold;")
         self.drag_label.setCursor(Qt.PointingHandCursor)
         
         layout.addWidget(self.checkbox)
@@ -317,7 +317,8 @@ class TodoPanel(QWidget):
             QScrollArea {
                 border: none;
                 background-color: rgba(50, 50, 50, 200);
-                padding: 5px;
+                padding-left: 5px;
+                padding-right: 5px;
             }
             QScrollBar:horizontal {
                 height: 0px;
