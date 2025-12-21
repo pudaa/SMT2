@@ -1,4 +1,5 @@
 import psutil
+import shutil
 import platform
 from datetime import datetime
 import wmi
@@ -33,6 +34,21 @@ class PerformanceMonitor:
         # except Exception:
         #     return 0.0
         return 0.5
+    
+    @staticmethod
+    def get_disk_percent(path:str="/") -> tuple[float, int]:
+        """获取磁盘使用率百分比"""
+        try:
+            if platform.system() == "Windows":
+                path = "C:\\"
+            
+            usage = shutil.disk_usage(path)
+            percent = usage.used / usage.total
+            return percent, usage.free // (1024**3)  # 返回百分比和剩余GB数
+        except Exception as e:
+            return None, f"错误: {str(e)}"
+        
+        
     @staticmethod
     def get_battery_percent() -> float:
         """获取电池电量"""
