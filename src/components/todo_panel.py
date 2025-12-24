@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QPoint, Signal, QThread, QObject
 from PySide6.QtGui import QMouseEvent, QFontMetrics, QWheelEvent
 from src.utils.todo_tag_extractor import TodoTagExtractor
-
+from src.configs.base_config import get_qss_color, get_todo_file_name
 
 class TagRefreshWorker(QObject):
     """异步刷新标签的worker"""
@@ -38,16 +38,16 @@ class TodoItemWidget(QWidget): # 单个待办事项组件
         super().__init__(parent)
         self.content_text = text
         self.setFixedHeight(32)
-        self.setStyleSheet("""
-            QToolTip {
-                color: #ccc;
-                background-color: rgba(50, 50, 50, 100);
+        self.setStyleSheet(f"""
+            QToolTip {{
+                color: {get_qss_color("todo_panel_todoitem_foreground", "#ccc")};
+                background-color:{get_qss_color("todo_panel_todoitem_background", [50, 50, 50, 100])};
                 border: none;
                 border-radius: 6px;
                 padding: 4px 8px;
                 font-size: 12px;
                 white-space: pre-wrap; 
-            }  
+            }}  
             background-color: transparent;
             border: none;
         """)
@@ -66,44 +66,44 @@ class TodoItemWidget(QWidget): # 单个待办事项组件
         layout.setSpacing(5)
         
         self.checkbox = QCheckBox()
-        self.checkbox.setStyleSheet("""
-            QCheckBox {
+        self.checkbox.setStyleSheet(f"""
+            QCheckBox {{
                 spacing: 5px;
-            }
-            QCheckBox::indicator {
+            }}
+            QCheckBox::indicator {{
                 width: 18px;
                 height: 18px;
-            }
-            QCheckBox::indicator:unchecked {
-                border: 2px solid #888;
+            }}
+            QCheckBox::indicator:unchecked {{
+                border: 2px solid {get_qss_color("todo_panel_todoitem_checkbox_unchecked_border", "#888")};
                 border-radius: 3px;
                 background-color: transparent;
-            }
-            QCheckBox::indicator:checked {
-                border: 2px solid #555;
+            }}
+            QCheckBox::indicator:checked {{
+                border: 2px solid {get_qss_color("todo_panel_todoitem_checkbox_checked_border", "#555")};
                 border-radius: 3px;
-                background-color: #4a90e2;
-            }
+                background-color: {get_qss_color("todo_panel_todoitem_checkbox_checked_background", "#4a90e2")};
+            }}
         """)
         
         self.text_field = QLineEdit(text)
-        self.text_field.setStyleSheet("""
-            QLineEdit {
+        self.text_field.setStyleSheet(f"""
+            QLineEdit {{
                 background-color: transparent;
                 border: none;
-                color: #ccc;
+                color: {get_qss_color("todo_panel_todoitem_lineedit_foreground", "#ccc")};
                 font-size: 12px;
                 padding: 4px;
-            }
-            QLineEdit:focus {
-                border-bottom: 1px solid #4a90e2;
-            }
+            }}
+            QLineEdit:focus {{
+                border-bottom: 1px solid {get_qss_color("todo_panel_todoitem_lineedit_focus", "#4a90e2")};
+            }}
         """)
         self.text_field.mouseDoubleClickEvent = self.handle_double_click
         self.handle_text_show()
         
         self.drag_label = QLabel("  ☰  ")
-        self.drag_label.setStyleSheet("color: #888; font-size: 14px; font-weight: bold;")
+        self.drag_label.setStyleSheet(f"color: {get_qss_color("todo_panel_todoitem_draglabel", "#888")}; font-size: 14px; font-weight: bold;")
         self.drag_label.setCursor(Qt.PointingHandCursor)
         
         layout.addWidget(self.checkbox)
@@ -197,26 +197,26 @@ class TodoItemWidget(QWidget): # 单个待办事项组件
     def on_checkbox_clicked(self):
         """复选框状态改变时的处理，优化样式更新"""
         if self.checkbox.isChecked():
-            self.text_field.setStyleSheet("""
-                QLineEdit {
+            self.text_field.setStyleSheet(f"""
+                QLineEdit {{
                     background-color: transparent;
                     border: none;
-                    color: #888;
+                    color: {get_qss_color("todo_panel_todoitem_lineedit_finished", "#888")};
                     font-size: 12px;
                     padding: 4px;
                     text-decoration: line-through;
-                }
+                }}
             """)
         else:
-            self.text_field.setStyleSheet("""
-                QLineEdit {
+            self.text_field.setStyleSheet(f"""
+                QLineEdit {{
                     background-color: transparent;
                     border: none;
-                    color: #ccc;
+                    color: {get_qss_color("todo_panel_todoitem_lineedit_foreground", "#ccc")};
                     font-size: 12px;
                     padding: 4px;
                     text-decoration: none;
-                }
+                }}
             """)
         # 标记需要重新计算标签
         self._cached_tags = None
@@ -295,16 +295,16 @@ class TodoPanel(QWidget):
         # 标题
         title_label = QLabel("———— 待办事项 ————")
         title_label.setAlignment(Qt.AlignCenter)
-        title_label.setStyleSheet("""
-            QLabel {
-                color: #ccc;
-                background-color: rgba(50, 50, 50, 200);
+        title_label.setStyleSheet(f"""
+            QLabel {{
+                color: {get_qss_color("todo_panel_titlelabel_foreground", "#ccc")};
+                background-color: {get_qss_color("todo_panel_titlelabel_background", [50, 50, 50, 200])};
                 font-size: 15px;
                 font-weight: bold;
                 padding: 5px;
                 border-top-left-radius: 20px;
                 border-top-right-radius: 20px;
-            }
+            }}
         """)
         layout.addWidget(title_label)
         
@@ -313,21 +313,21 @@ class TodoPanel(QWidget):
         self.tag_scroll_area.setWidgetResizable(True)
         self.tag_scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.tag_scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.tag_scroll_area.setStyleSheet("""
-            QScrollArea {
+        self.tag_scroll_area.setStyleSheet(f"""
+            QScrollArea {{
                 border: none;
-                background-color: rgba(50, 50, 50, 200);
+                background-color: {get_qss_color("todo_panel_tagscrollarea_background", [50, 50, 50, 200])};
                 padding-left: 5px;
                 padding-right: 5px;
-            }
-            QScrollBar:horizontal {
+            }}
+            QScrollBar:horizontal {{
                 height: 0px;
                 background-color: transparent;
-            }
-            QScrollBar::handle:horizontal {
+            }}
+            QScrollBar::handle:horizontal {{
                 background-color: transparent;
                 border-radius: 4px;
-            }
+            }}
         """)
         # 启用鼠标跟踪以支持拖拽
         self.tag_scroll_area.setMouseTracking(True)
@@ -347,25 +347,25 @@ class TodoPanel(QWidget):
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.scroll_area.setStyleSheet("""
-            QScrollArea {
+        self.scroll_area.setStyleSheet(f"""
+            QScrollArea {{
                 border: none;
                 padding-top: 0px;
                 padding-right: 10px;
                 padding-bottom: 10px;
                 padding-left: 10px;
-                background-color: rgba(50, 50, 50, 200);
+                background-color: {get_qss_color("todo_panel_scrollarea_background", [50, 50, 50, 200])};
                 border-bottom-left-radius: 20px;
                 border-bottom-right-radius: 20px;
-            }
-            QScrollBar:vertical {
+            }}
+            QScrollBar:vertical {{
                 width: 5px;
                 background-color: transparent;
-            }
-            QScrollBar::handle:vertical {
-                background-color: #555;
+            }}
+            QScrollBar::handle:vertical {{
+                background-color: {get_qss_color("todo_panel_scrollbar_background", "#555")};
                 border-radius: 4px;
-            }
+            }}
         """)
         
         # 待办事项列表容器
@@ -555,26 +555,26 @@ class TodoPanel(QWidget):
     
     def _get_tag_button_style(self):
         """获取标签按钮样式字符串"""
-        return """
-            QToolButton {
-                background-color: #666;
-                color: #ccc;
+        return f"""
+            QToolButton {{
+                background-color: {get_qss_color("todo_panel_tagbutton_background", "#666")};
+                color: {get_qss_color("todo_panel_tagbutton_foreground", "#ccc")};
                 border: none;
                 border-radius: 10px;
                 padding: 3px 8px;
                 font-size: 11px;
                 font-family: "Microsoft YaHei";
-            }
-            QToolButton:checked {
-                background-color: #4a90e2;
-                color: white;
-            }
-            QToolButton:hover {
-                background-color: #777;
-            }
-            QToolButton:checked:hover {
-                background-color: #5aa0f0;
-            }
+            }}
+            QToolButton:checked {{
+                background-color: {get_qss_color("todo_panel_tagbutton_checked_background", "#4a90e2")};
+                color: {get_qss_color("todo_panel_tagbutton_checked_foreground", "white")};
+            }}
+            QToolButton:hover {{
+                background-color: {get_qss_color("todo_panel_tagbutton_check_hover_background", "#777")};
+            }}
+            QToolButton:checked:hover {{
+                background-color: {get_qss_color("todo_panel_tagbutton_checked_hover_background", "#5aa0f0")};
+            }}
         """
             
     def toggle_tag_filter(self, tag):
@@ -613,8 +613,9 @@ class TodoPanel(QWidget):
                     
     def load_todos(self):
         try:
-            if os.path.exists("resources/todos.json"):
-                with open("resources/todos.json", "r", encoding="utf-8") as f:
+            todo_file_source = get_todo_file_name()
+            if os.path.exists(todo_file_source):
+                with open(todo_file_source, "r", encoding="utf-8") as f:
                     todos = json.load(f)
                     for todo in todos:
                         self.add_todo_item(todo["text"])
@@ -626,6 +627,7 @@ class TodoPanel(QWidget):
             
     def save_todos(self):
         todos = []
+        todo_file_source = get_todo_file_name()
         for i in range(self.todo_layout.count() - 1):  # 排除最后的Stretch
             widget = self.todo_layout.itemAt(i).widget()
             if isinstance(widget, TodoItemWidget):
@@ -637,7 +639,7 @@ class TodoPanel(QWidget):
                     })
         
         # 保存到文件
-        with open("resources/todos.json", "w", encoding="utf-8") as f:
+        with open(todo_file_source, "w", encoding="utf-8") as f:
             json.dump(todos, f, ensure_ascii=False, indent=2)
             
     def update_todo_list(self):
@@ -647,7 +649,7 @@ class TodoPanel(QWidget):
         items_changed = False
         self.refresh_tags()
         
-        for i in range(self.todo_layout.count() - 1):  # 排除最后的Stretch
+        for i in range(self.todo_layout.count() - 1):
             widget = self.todo_layout.itemAt(i).widget()
             if isinstance(widget, TodoItemWidget):
                 if widget.is_completed() or not widget.content_text.strip():

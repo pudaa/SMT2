@@ -1,20 +1,9 @@
 from src.configs.base_config import get_extractor_model
 from typing import List
 from src.utils.lightweight_tag_extractor import LightweightTagExtractor
+from src.configs.base_config import get_todo_poses
 
-# 根据配置决定使用哪种提取器
-if get_extractor_model() == 'jieba':
-    JIEBA_AVAILABLE = True
-    # try:
-    #     import jieba
-    #     import os
-    #     if os.name == 'posix':
-    #         jieba.enable_parallel(1)
-    # except ImportError:
-    #     JIEBA_AVAILABLE = False
-else:
-    JIEBA_AVAILABLE = False
-    from src.utils.lightweight_tag_extractor import LightweightTagExtractor
+JIEBA_AVAILABLE = get_extractor_model() == 'jieba'
 
 class TodoTagExtractor:
     """
@@ -106,8 +95,7 @@ class TodoTagExtractor:
                     continue
                 
                 # 选择合适的词性或自定义词
-                if flag.startswith(('n', 'eng')) or word in education_tech_words:  # 名词、英文或自定义词
-                    # 过滤单字符（除非是中文）
+                if flag.startswith(get_todo_poses) or word in education_tech_words:  # 名词、英文或自定义词
                     if len(word) > 1 or ('\u4e00' <= word <= '\u9fff'):
                         tags.append(word)
             

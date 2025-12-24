@@ -6,11 +6,6 @@ from src.components.todo_panel import TodoPanel, TodoItemWidget
 from src.utils.performance_monitor import PerformanceMonitor
 import sys
 import ctypes
-from src.components.performance_panel import PerformancePanel
-from src.components.todo_panel import TodoPanel, TodoItemWidget
-from src.utils.performance_monitor import PerformanceMonitor
-import sys
-import ctypes
 
 class MainWidget(QWidget):
     def __init__(self):

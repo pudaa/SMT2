@@ -17,25 +17,6 @@ class PerformanceMonitor:
         return memory.percent / 100.0
     
     @staticmethod
-    def get_gpu_percent() -> float: 
-        """获取GPU使用率"""
-        # c = wmi.WMI()
-        # for gpu in c.Win32_VideoController():
-        #     print(f"GPU: {gpu.Name} - Memory: {gpu.AdapterRAM}")
-        # try:
-        #     print("Fetching GPU usage...")
-        #     gpus = GPUtil.getGPUs()
-        #     if not gpus:
-        #         print("No GPU found.")
-        #         return 0.0
-        #     average_load = sum(gpu.load for gpu in gpus)
-        #     print(f"GPU Loads: {[gpu.load for gpu in gpus]}")
-        #     return average_load / len(gpus)
-        # except Exception:
-        #     return 0.0
-        return 0.5
-    
-    @staticmethod
     def get_disk_percent(path:str="/") -> tuple[float, int]:
         """获取磁盘使用率百分比"""
         try:

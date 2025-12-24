@@ -3,12 +3,14 @@ from PySide6.QtGui import QPainter, QColor, QFont, QPen
 from PySide6.QtCore import Qt, QTimer
 from datetime import datetime
 from src.utils.performance_monitor import PerformanceMonitor
+from src.configs.base_config import get_color
 
 class PerformancePanel(QWidget):
     def __init__(self):
         super().__init__()
         self.setFixedSize(250, 90)
         self.setAttribute(Qt.WA_TranslucentBackground) 
+        
         
         # 性能数据
         self.cpu_percent = 0
@@ -34,16 +36,16 @@ class PerformancePanel(QWidget):
         painter.setRenderHint(QPainter.Antialiasing)
         
         # 绘制背景
-        painter.setBrush(QColor(50, 50, 50, 200))
+        painter.setBrush(QColor(*get_color("performance_panel_background", [50, 50, 50, 200]))) # QColor(50, 50, 50, 200)
         painter.setPen(Qt.NoPen)
         painter.drawRoundedRect(0, 0, self.width(), self.height(), 15, 15)
         
         # 绘制阴影
-        painter.setBrush(QColor(0, 0, 0, 80))
+        painter.setBrush(QColor(*get_color("performance_panel_shadow", [0, 0, 0, 80]))) # QColor(0, 0, 0, 80)
         painter.drawRoundedRect(3, 3, self.width()-6, self.height()-6, 15, 15)
         
         # 绘制时间
-        painter.setPen(QColor(200, 200, 200))
+        painter.setPen(QColor(*get_color("performance_panel_time", [200, 200, 200]))) # QColor(200, 200, 200)
         font = QFont("Microsoft YaHei UI", 9)
         painter.setFont(font)
         time_str = datetime.now().strftime("%H:%M:%S")
@@ -81,28 +83,28 @@ class PerformancePanel(QWidget):
         y = 20
         
         # 绘制背景环
-        pen = QPen(QColor(70, 70, 70, 150))
+        pen = QPen(QColor(*get_color("performance_panel_progress_ring_background", [70, 70, 70, 150]))) # QColor(70, 70, 70, 150)
         pen.setWidth(2.5)
         pen.setCapStyle(Qt.RoundCap)
         painter.setPen(pen)
         painter.drawEllipse(x, y, diameter, diameter)
         
         # 绘制进度弧
-        pen.setColor(QColor(200, 200, 200))
+        pen.setColor(QColor(*get_color("performance_panel_progress_ring_foreground", [200, 200, 200]))) # QColor(200, 200, 200)
         painter.setPen(pen)
         span_angle = int(360 * progress * 16)
         painter.drawArc(x, y, diameter, diameter, 90 * 16, -span_angle)
         
         # 绘制标题文本
         painter.setFont(title_font)
-        painter.setPen(QColor(200, 200, 200))
+        painter.setPen(QColor(*get_color("performance_panel_progress_title", [200, 200, 200]))) # QColor(200, 200, 200)
         metrics = painter.fontMetrics()
         title_width = metrics.horizontalAdvance(value)
         painter.drawText(x + (diameter - title_width) // 2, y + diameter + 14, value)
         
         # 绘制数值文本
         painter.setFont(value_font)
-        painter.setPen(QColor(200, 200, 200))
+        painter.setPen(QColor(*get_color("performance_panel_progress_text", [200, 200, 200]))) # QColor(200, 200, 200)
         metrics = painter.fontMetrics()
         value_width = metrics.horizontalAdvance(percentage)
         painter.drawText(x + (diameter - value_width) // 2, y + diameter // 2 + 5, percentage)
