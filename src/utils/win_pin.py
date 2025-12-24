@@ -56,6 +56,10 @@ class WindowPinner:
             # 检查窗口是否最小化
             if win32gui.IsIconic(hwnd):
                 return
+            
+            # 过滤无边框窗口
+            if not (style & win32con.WS_CAPTION) and 'steam' not in title.lower() and 'smt2' not in title.lower():
+                return
 
             # 检查窗口矩形是否有效
             try:
