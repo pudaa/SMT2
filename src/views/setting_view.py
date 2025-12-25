@@ -15,12 +15,14 @@ class SettingView(QScrollArea):
     
     def __init__(self):
         super().__init__()
+        self.setObjectName("settingView")
         self.config_path = "resources/properties.json"
         self.config_data = self.load_config()
         self.original_config = self.config_data.copy()  # 保存原始配置用于恢复
         
         # 主控件
         self.scrollWidget = QWidget()
+        self.scrollWidget.setObjectName("scrollWidget")
         self.setWidget(self.scrollWidget)
         self.setWidgetResizable(True)
         

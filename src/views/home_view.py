@@ -5,6 +5,7 @@ from PySide6.QtCore import Qt
 class HomeView(QWidget):
     def __init__(self):
         super().__init__()
+        self.setObjectName("homeView")
         
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignTop)
@@ -18,6 +19,7 @@ class HomeView(QWidget):
             font-weight: bold;
             color: #333;
             padding: 20px;
+            background-color: transparent;
         """)
         
         # 添加描述
@@ -27,6 +29,7 @@ class HomeView(QWidget):
             font-size: 16px;
             color: #666;
             padding: 10px;
+            background-color: transparent;
         """)
         
         # 添加功能列表
@@ -43,6 +46,7 @@ class HomeView(QWidget):
             font-size: 14px;
             color: #555;
             padding: 20px;
+            background-color: transparent;
         """)
         
         # 添加占位符以居中内容

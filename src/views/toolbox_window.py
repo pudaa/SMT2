@@ -2,10 +2,89 @@ from PySide6.QtWidgets import (QWidget, QHBoxLayout, QVBoxLayout, QFrame,
                                QListWidget, QListWidgetItem, QStackedWidget,
                                QApplication, QLabel, QPushButton, QSplitter,
                                QToolButton)
-from PySide6.QtCore import Qt, QSize, Signal, QPoint, QPropertyAnimation, QEasingCurve
-from PySide6.QtGui import QIcon, QPalette, QColor
+from PySide6.QtCore import Qt, QSize, Signal, QPoint, QPropertyAnimation, QEasingCurve, QRect
+from PySide6.QtGui import QIcon, QPalette, QColor, QPainter, QPen
 from .home_view import HomeView
 from .setting_view import SettingView
+
+
+class Switch(QWidget):
+    """自定义开关组件"""
+    # 添加toggled信号
+    toggled = Signal(bool)
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedSize(50, 26)  # 设置开关大小
+        self.is_checked = False
+        self.animation = QPropertyAnimation(self, b"geometry", self)
+        self.animation.setDuration(200)  # 动画持续时间
+        self.animation.setEasingCurve(QEasingCurve.InOutCubic)
+        
+    def paintEvent(self, event):
+        """绘制开关"""
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        
+        # 获取当前主题状态
+        parent = self.parent()
+        is_dark_theme = False
+        while parent:
+            if hasattr(parent, 'is_dark_theme'):
+                is_dark_theme = parent.is_dark_theme
+                break
+            parent = parent.parent()
+        
+        # 绘制背景
+        if self.is_checked:
+            if is_dark_theme:
+                painter.setBrush(QColor(100, 150, 255))  # 深色主题下开启状态的蓝色
+            else:
+                painter.setBrush(QColor(50, 120, 255))   # 浅色主题下开启状态的蓝色
+        else:
+            if is_dark_theme:
+                painter.setBrush(QColor(80, 80, 80))  # 深色主题下关闭状态的灰色
+            else:
+                painter.setBrush(QColor(180, 180, 180))  # 浅色主题下关闭状态的灰色
+        
+        painter.setPen(Qt.NoPen)
+        painter.drawRoundedRect(0, 0, self.width(), self.height(), 13, 13)
+        
+        # 绘制滑块
+        if is_dark_theme:
+            painter.setBrush(QColor(240, 240, 240))  # 深色主题下的滑块颜色
+        else:
+            painter.setBrush(QColor(255, 255, 255))  # 浅色主题下的滑块颜色
+            
+        if self.is_checked:
+            slider_x = self.width() - 24  # 开启状态下滑块位置
+        else:
+            slider_x = 4  # 关闭状态下滑块位置
+            
+        painter.drawEllipse(slider_x, 3, 20, 20)
+    
+    def mousePressEvent(self, event):
+        """处理鼠标点击事件"""
+        if event.button() == Qt.LeftButton:
+            self.toggle()
+            return super().mousePressEvent(event)
+    
+    def toggle(self):
+        """切换开关状态"""
+        self.is_checked = not self.is_checked
+        self.update()
+        self.toggled.emit(self.is_checked)  # 发射信号
+    
+    def setChecked(self, checked):
+        """设置开关状态"""
+        if self.is_checked != checked:
+            self.is_checked = checked
+            self.update()
+            self.toggled.emit(self.is_checked)  # 发射信号
+    
+    def isChecked(self):
+        """获取开关状态"""
+        return self.is_checked
 
 
 class ToolBoxWindow(QWidget):
@@ -19,6 +98,9 @@ class ToolBoxWindow(QWidget):
         
         # 设置窗口图标
         self.setWindowIcon(QIcon("resources/tray.png"))
+        
+        # 初始化主题状态
+        self.is_dark_theme = False
         
         # 主布局
         main_layout = QVBoxLayout(self)
@@ -176,14 +258,27 @@ class ToolBoxWindow(QWidget):
             list_item.setTextAlignment(Qt.AlignCenter)
             self.nav_list.addItem(list_item)
         
-        # 切换主题按钮
-        self.theme_button = QPushButton("切换主题")
-        self.theme_button.clicked.connect(self.toggle_theme)
-        self.theme_button.setObjectName("themeButton")
+        # 主题切换容器
+        theme_container = QWidget()
+        theme_layout = QHBoxLayout(theme_container)
+        theme_layout.setContentsMargins(15, 10, 15, 10)
+        
+        # 主题标签
+        theme_label = QLabel("深色模式")
+        theme_label.setObjectName("themeLabel")
+        
+        # 主题切换开关
+        self.theme_switch = Switch()
+        self.theme_switch.setChecked(False)  # 初始为浅色主题
+        self.theme_switch.toggled.connect(self.toggle_theme)  # 连接切换主题函数
+        
+        theme_layout.addWidget(theme_label)
+        theme_layout.addStretch()
+        theme_layout.addWidget(self.theme_switch)
         
         layout.addWidget(title_label)
         layout.addWidget(self.nav_list)
-        layout.addWidget(self.theme_button)
+        layout.addWidget(theme_container)
         
         return panel
 
@@ -218,224 +313,294 @@ class ToolBoxWindow(QWidget):
 
     def toggle_theme(self):
         """切换明暗主题"""
-        # 获取当前应用的调色板
-        palette = QApplication.instance().palette()
-        
-        # 检查当前是否为暗色主题
-        current_bg = palette.color(QPalette.Window)
-        is_dark = current_bg.lightness() < 128
-        
-        if is_dark:
+        if self.is_dark_theme:
             # 切换到亮色主题
             self.set_light_theme()
+            self.is_dark_theme = False
         else:
             # 切换到暗色主题
             self.set_dark_theme()
+            self.is_dark_theme = True
+    
+    def apply_stylesheet(self):
+        """应用样式表"""
+        if self.is_dark_theme:
+            self.set_dark_theme()
+        else:
+            self.set_light_theme()
     
     def set_light_theme(self):
-        """设置亮色主题"""
-        app = QApplication.instance()
-        palette = QPalette()
-        
-        # 设置颜色
-        palette.setColor(QPalette.Window, QColor(250, 250, 250))
-        palette.setColor(QPalette.WindowText, QColor(32, 32, 32))
-        palette.setColor(QPalette.Base, QColor(245, 245, 245))
-        palette.setColor(QPalette.AlternateBase, QColor(255, 255, 255))
-        palette.setColor(QPalette.ToolTipBase, QColor(255, 255, 255))
-        palette.setColor(QPalette.ToolTipText, QColor(0, 0, 0))
-        palette.setColor(QPalette.Text, QColor(32, 32, 32))
-        palette.setColor(QPalette.Button, QColor(240, 240, 240))
-        palette.setColor(QPalette.ButtonText, QColor(32, 32, 32))
-        palette.setColor(QPalette.BrightText, QColor(255, 0, 0))
-        palette.setColor(QPalette.Highlight, QColor(51, 153, 255))
-        palette.setColor(QPalette.HighlightedText, QColor(255, 255, 255))
-        
-        app.setPalette(palette)
-        self.apply_stylesheet(light=True)
+        """设置浅色主题"""
+        self.is_dark_theme = False
+        self.setStyleSheet("""
+            /* 主窗口样式 */
+            #mainFrame {
+                background-color: white;
+                border: 1px solid #e0e0e0;
+                border-radius: 15px;
+            }
+            
+            #titleBar {
+                background-color: white;
+                border-bottom: 1px solid #e0e0e0;
+                border-top-left-radius: 15px;
+                border-top-right-radius: 15px;
+            }
+            
+            #navPanel {
+                background-color: white;
+                border-right: 1px solid #e0e0e0;
+                border-bottom-left-radius: 15px;
+            }
+            
+            #contentPanel {
+                background-color: white;
+                border-bottom-right-radius: 15px;
+            }
+            
+            #themeButton {
+                background-color: white;
+                border: 1px solid #e0e0e0;
+                border-radius: 15px;
+                padding: 15px;
+                color: #333333;
+            }
+            
+            #themeButton:hover {
+                background-color: #f5f5f5;
+            }
+            
+            /* 导航列表项样式 */
+            QListWidget#navList {
+                background-color: white;
+                border: none;
+                outline: none;
+                border-radius: 10px;
+            }
+            
+            QListWidget#navList::item {
+                background-color: white;
+                border: none;
+                padding: 8px 16px;
+                margin: 2px 0;
+                border-radius: 8px;
+                color: #333333;
+            }
+            
+            QListWidget#navList::item:selected {
+                background-color: #e0e0e0;
+                color: #333333;
+            }
+            
+            QListWidget#navList::item:hover {
+                background-color: #f5f5f5;
+            }
+            
+            /* 首页视图样式 */
+            #homeView {
+                background-color: white;
+                border-radius: 10px;
+            }
+            
+            #scrollWidget {
+                background-color: white;
+                border-radius: 10px;
+            }
+            
+            /* 设置视图样式 */
+            #settingView {
+                background-color: white;
+                border-radius: 10px;
+            }
+            
+            QGroupBox {
+                background-color: white;
+                border: 1px solid #e0e0e0;
+                border-radius: 10px;
+                margin-top: 10px;
+                padding-top: 10px;
+                color: #333333;
+            }
+            
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+                color: #333333;
+            }
+            
+            QLineEdit {
+                background-color: white;
+                border: 1px solid #e0e0e0;
+                border-radius: 5px;
+                padding: 5px;
+                color: #333333;
+            }
+            
+            QPushButton {
+                background-color: white;
+                border: 1px solid #e0e0e0;
+                border-radius: 5px;
+                padding: 5px 10px;
+                color: #333333;
+            }
+            
+            QPushButton:hover {
+                background-color: #f5f5f5;
+            }
+            
+            QToolButton {
+                background-color: white;
+                border: 1px solid #e0e0e0;
+                border-radius: 5px;
+                padding: 2px;
+                color: #333333;
+            }
+            
+            QToolButton:hover {
+                background-color: #f5f5f5;
+            }
+            
+            QLabel {
+                background-color: transparent;
+                color: #333333;
+            }
+        """)
     
     def set_dark_theme(self):
-        """设置暗色主题"""
-        app = QApplication.instance()
-        palette = QPalette()
-        
-        # 设置颜色
-        palette.setColor(QPalette.Window, QColor(32, 32, 32))
-        palette.setColor(QPalette.WindowText, QColor(250, 250, 250))
-        palette.setColor(QPalette.Base, QColor(45, 45, 45))
-        palette.setColor(QPalette.AlternateBase, QColor(35, 35, 35))
-        palette.setColor(QPalette.ToolTipBase, QColor(0, 0, 0))
-        palette.setColor(QPalette.ToolTipText, QColor(250, 250, 250))
-        palette.setColor(QPalette.Text, QColor(250, 250, 250))
-        palette.setColor(QPalette.Button, QColor(50, 50, 50))
-        palette.setColor(QPalette.ButtonText, QColor(250, 250, 250))
-        palette.setColor(QPalette.BrightText, QColor(255, 0, 0))
-        palette.setColor(QPalette.Highlight, QColor(0, 120, 215))
-        palette.setColor(QPalette.HighlightedText, QColor(255, 255, 255))
-        
-        app.setPalette(palette)
-        self.apply_stylesheet(light=False)
-
-    def apply_stylesheet(self, light=True):
-        """应用样式表"""
-        if light:
-            # 亮色主题样式
-            style = """
-                #mainFrame {
-                    background-color: #ffffff;
-                    border-radius: 10px;
-                    border: 1px solid #d9d9d9;
-                }
-                #titleBar {
-                    background-color: #ffffff;
-                    border-bottom: 1px solid #e0e0e0;
-                    border-top-left-radius: 10px;
-                    border-top-right-radius: 10px;
-                }
-                #titleLabel {
-                    color: #333333;
-                    font-weight: bold;
-                    font-size: 12px;
-                }
-                #minimizeButton, #closeButton {
-                    background-color: #f0f0f0;
-                    border: 1px solid #d9d9d9;
-                    border-radius: 4px;
-                    font-weight: bold;
-                    color: #333;
-                }
-                #minimizeButton:hover {
-                    background-color: #e6e6e6;
-                }
-                #closeButton:hover {
-                    background-color: #ff5555;
-                    color: white;
-                }
-                #navPanel {
-                    background-color: #ffffff;
-                    border-right: 1px solid #e0e0e0;
-                }
-                #navList {
-                    background-color: #ffffff;
-                    border: none;
-                    padding: 10px 0px;
-                }
-                #navList::item {
-                    height: 40px;
-                    padding: 5px;
-                    color: #666666;
-                }
-                #navList::item:selected {
-                    background-color: #e6f7ff;
-                    color: #1890ff;
-                    border-left: 3px solid #1890ff;
-                }
-                #contentPanel {
-                    background-color: #fafafa;
-                }
-                #themeButton {
-                    background-color: #f0f0f0;
-                    border: 1px solid #d9d9d9;
-                    padding: 8px;
-                    margin: 10px;
-                    border-radius: 4px;
-                    color: #333;
-                }
-                #themeButton:hover {
-                    background-color: #e6f7ff;
-                    border-color: #1890ff;
-                }
-                #applyButton {
-                    background-color: #1890ff;
-                    color: white;
-                    border: none;
-                    border-radius: 4px;
-                    font-weight: bold;
-                }
-                #applyButton:hover {
-                    background-color: #40a9ff;
-                }
-            """
-        else:
-            # 暗色主题样式
-            style = """
-                #mainFrame {
-                    background-color: #2d2d2d;
-                    border-radius: 10px;
-                    border: 1px solid #444444;
-                }
-                #titleBar {
-                    background-color: #2d2d2d;
-                    border-bottom: 1px solid #444444;
-                    border-top-left-radius: 10px;
-                    border-top-right-radius: 10px;
-                }
-                #titleLabel {
-                    color: #eeeeee;
-                    font-weight: bold;
-                    font-size: 12px;
-                }
-                #minimizeButton, #closeButton {
-                    background-color: #3c3c3c;
-                    border: 1px solid #555555;
-                    border-radius: 4px;
-                    font-weight: bold;
-                    color: #ffffff;
-                }
-                #minimizeButton:hover {
-                    background-color: #4a4a4a;
-                }
-                #closeButton:hover {
-                    background-color: #ff5555;
-                    color: white;
-                }
-                #navPanel {
-                    background-color: #202020;
-                    border-right: 1px solid #444444;
-                }
-                #navList {
-                    background-color: #202020;
-                    border: none;
-                    padding: 10px 0px;
-                }
-                #navList::item {
-                    height: 40px;
-                    padding: 5px;
-                    color: #aaaaaa;
-                }
-                #navList::item:selected {
-                    background-color: #1a233a;
-                    color: #5d8ad0;
-                    border-left: 3px solid #5d8ad0;
-                }
-                #contentPanel {
-                    background-color: #2d2d2d;
-                }
-                #themeButton {
-                    background-color: #333333;
-                    border: 1px solid #555555;
-                    padding: 8px;
-                    margin: 10px;
-                    border-radius: 4px;
-                    color: #ffffff;
-                }
-                #themeButton:hover {
-                    background-color: #444444;
-                    border-color: #5d8ad0;
-                }
-                #applyButton {
-                    background-color: #1890ff;
-                    color: white;
-                    border: none;
-                    border-radius: 4px;
-                    font-weight: bold;
-                }
-                #applyButton:hover {
-                    background-color: #40a9ff;
-                }
-            """
-        
-        self.setStyleSheet(style)
-        
-        # 同时应用到子组件
-        self.main_frame.setStyleSheet(style)
+        """设置深色主题"""
+        self.is_dark_theme = True
+        self.setStyleSheet("""
+            /* 主窗口样式 */
+            #mainFrame {
+                background-color: #2b2b2b;
+                border: 1px solid #404040;
+                border-radius: 15px;
+            }
+            
+            #titleBar {
+                background-color: #2b2b2b;
+                border-bottom: 1px solid #404040;
+                border-top-left-radius: 15px;
+                border-top-right-radius: 15px;
+            }
+            
+            #navPanel {
+                background-color: #2b2b2b;
+                border-right: 1px solid #404040;
+                border-bottom-left-radius: 15px;
+            }
+            
+            #contentPanel {
+                background-color: #2b2b2b;
+                border-bottom-right-radius: 15px;
+            }
+            
+            #themeButton {
+                background-color: #2b2b2b;
+                border: 1px solid #404040;
+                border-radius: 15px;
+                padding: 15px;
+                color: #ffffff;
+            }
+            
+            #themeButton:hover {
+                background-color: #404040;
+            }
+            
+            /* 导航列表项样式 */
+            QListWidget#navList {
+                background-color: #2b2b2b;
+                border: none;
+                outline: none;
+                border-radius: 10px;
+            }
+            
+            QListWidget#navList::item {
+                background-color: #2b2b2b;
+                border: none;
+                padding: 8px 16px;
+                margin: 2px 0;
+                border-radius: 8px;
+                color: #ffffff;
+            }
+            
+            QListWidget#navList::item:selected {
+                background-color: #404040;
+                color: #ffffff;
+            }
+            
+            QListWidget#navList::item:hover {
+                background-color: #404040;
+            }
+            
+            /* 首页视图样式 */
+            #homeView {
+                background-color: #2b2b2b;
+                border-radius: 10px;
+            }
+            
+            #scrollWidget {
+                background-color: #2b2b2b;
+                border-radius: 10px;
+            }
+            
+            /* 设置视图样式 */
+            #settingView {
+                background-color: #2b2b2b;
+                border-radius: 10px;
+            }
+            
+            QGroupBox {
+                background-color: #2b2b2b;
+                border: 1px solid #404040;
+                border-radius: 10px;
+                margin-top: 10px;
+                padding-top: 10px;
+                color: #ffffff;
+            }
+            
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+                color: #ffffff;
+            }
+            
+            QLineEdit {
+                background-color: #2b2b2b;
+                border: 1px solid #404040;
+                border-radius: 5px;
+                padding: 5px;
+                color: #ffffff;
+            }
+            
+            QPushButton {
+                background-color: #2b2b2b;
+                border: 1px solid #404040;
+                border-radius: 5px;
+                padding: 5px 10px;
+                color: #ffffff;
+            }
+            
+            QPushButton:hover {
+                background-color: #404040;
+            }
+            
+            QToolButton {
+                background-color: #2b2b2b;
+                border: 1px solid #404040;
+                border-radius: 5px;
+                padding: 2px;
+                color: #ffffff;
+            }
+            
+            QToolButton:hover {
+                background-color: #404040;
+            }
+            
+            QLabel {
+                background-color: transparent;
+                color: #ffffff;
+            }
+        """)
