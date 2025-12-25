@@ -2,6 +2,7 @@ from PySide6.QtWidgets import QSystemTrayIcon, QMenu, QApplication
 from PySide6.QtGui import QAction, QIcon, QPixmap, QColor
 from PySide6.QtCore import QObject, Signal, Slot
 from ..utils.win_pin import WindowPinner
+from ..views.toolbox_window import ToolBoxWindow
 
 
 class MenuUpdater(QObject):
@@ -49,15 +50,23 @@ class SystemTrayIcon(QSystemTrayIcon):
         
         self.menu.addSeparator()
         
-        exit_action = QAction("退出", None)
-        exit_action.triggered.connect(QApplication.quit)
-        self.menu.addAction(exit_action)
+        # 工具箱
+        self.tools_action = QAction("工具箱", None)
+        self.tools_action.triggered.connect(self.open_toolbox)
+        self.menu.addAction(self.tools_action)
+        
+        self.exit_action = QAction("退出", None)
+        self.exit_action.triggered.connect(QApplication.quit)
+        self.menu.addAction(self.exit_action)
         
         self.setContextMenu(self.menu)
         
         # 初始化后置顶本程序窗口
         self.pin_self_on_init()
         
+        # 保持对工具箱窗口的引用，避免被垃圾回收
+        self.toolbox_window = None
+    
     def pin_self_on_init(self):
         """在初始化后置顶本程序窗口"""
         # 获取当前应用程序的所有窗口
@@ -69,6 +78,16 @@ class SystemTrayIcon(QSystemTrayIcon):
             if title.strip() == "SMT2":
                 self.win_pin.toggle_pin(hwnd)
                 break
+    
+    def open_toolbox(self):
+        """打开工具箱窗口"""
+        if self.toolbox_window is None:
+            self.toolbox_window = ToolBoxWindow()
+        
+        # 显示窗口并将其置于前台
+        self.toolbox_window.show()
+        self.toolbox_window.raise_()
+        self.toolbox_window.activateWindow()
     
     def toggle_performance_mode(self):
         # 获取父窗口并切换模式

@@ -1,7 +1,7 @@
 from src.configs.base_config import get_extractor_model
 from typing import List
 from src.utils.lightweight_tag_extractor import LightweightTagExtractor
-from src.configs.base_config import get_todo_poses
+from src.configs.base_config import get_color, get_todo_poses
 
 JIEBA_AVAILABLE = get_extractor_model() == 'jieba'
 
@@ -94,8 +94,8 @@ class TodoTagExtractor:
                 if word in TodoTagExtractor.CHINESE_STOPWORDS or word in TodoTagExtractor.ENGLISH_STOPWORDS:
                     continue
                 
-                # 选择合适的词性或自定义词
-                if flag.startswith(get_todo_poses) or word in education_tech_words:  # 名词、英文或自定义词
+                # 选择合适的词性或自定义词，转为tuple
+                if flag.startswith(tuple(get_todo_poses())) or word in education_tech_words:  # 名词、英文或自定义词
                     if len(word) > 1 or ('\u4e00' <= word <= '\u9fff'):
                         tags.append(word)
             

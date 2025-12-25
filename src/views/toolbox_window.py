@@ -1,0 +1,441 @@
+from PySide6.QtWidgets import (QWidget, QHBoxLayout, QVBoxLayout, QFrame, 
+                               QListWidget, QListWidgetItem, QStackedWidget,
+                               QApplication, QLabel, QPushButton, QSplitter,
+                               QToolButton)
+from PySide6.QtCore import Qt, QSize, Signal, QPoint, QPropertyAnimation, QEasingCurve
+from PySide6.QtGui import QIcon, QPalette, QColor
+from .home_view import HomeView
+from .setting_view import SettingView
+
+
+class ToolBoxWindow(QWidget):
+    def __init__(self):
+        super().__init__()
+        # 设置为无边框窗口并添加圆角
+        self.setWindowFlags(Qt.FramelessWindowHint)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setWindowTitle("SMT2 工具箱")
+        self.resize(1000, 650)
+        
+        # 设置窗口图标
+        self.setWindowIcon(QIcon("resources/tray.png"))
+        
+        # 主布局
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(10, 10, 10, 10)  # 添加边距以显示圆角
+        
+        # 创建主内容框架（带圆角）
+        self.main_frame = QFrame()
+        self.main_frame.setObjectName("mainFrame")
+        frame_layout = QVBoxLayout(self.main_frame)
+        frame_layout.setContentsMargins(0, 0, 0, 0)
+        
+        # 创建自定义标题栏
+        self.title_bar = self.create_title_bar()
+        frame_layout.addWidget(self.title_bar)
+        
+        # 创建内容区域
+        content_widget = QWidget()
+        content_layout = QHBoxLayout(content_widget)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(0)
+        
+        # 创建分割器
+        splitter = QSplitter(Qt.Horizontal)
+        content_layout.addWidget(splitter)
+        
+        # 左侧导航面板
+        self.nav_panel = self.create_nav_panel()
+        self.nav_panel.setMaximumWidth(200)
+        self.nav_panel.setMinimumWidth(200)
+        
+        # 右侧面板
+        self.content_panel = QFrame()
+        self.content_panel.setObjectName("contentPanel")
+        
+        # 右侧布局
+        right_layout = QVBoxLayout(self.content_panel)
+        right_layout.setContentsMargins(20, 20, 20, 20)
+        
+        # 右侧内容堆叠窗口
+        self.stacked_widget = QStackedWidget()
+        right_layout.addWidget(self.stacked_widget)
+        
+        # 添加应用按钮
+        self.apply_button = QPushButton("应用")
+        self.apply_button.setObjectName("applyButton")
+        self.apply_button.setFixedSize(80, 30)
+        self.apply_button.hide()  # 初始隐藏
+        self.apply_button.clicked.connect(self.apply_changes)
+        
+        # 创建一个定位应用按钮的布局
+        self.apply_container = QWidget()
+        apply_container_layout = QHBoxLayout(self.apply_container)
+        apply_container_layout.setContentsMargins(0, 0, 10, 10)
+        apply_container_layout.addStretch()
+        apply_container_layout.addWidget(self.apply_button)
+        
+        # 添加到右侧布局
+        right_layout.addWidget(self.apply_container)
+        
+        # 添加到分割器
+        splitter.addWidget(self.nav_panel)
+        splitter.addWidget(self.content_panel)
+        splitter.setSizes([200, 800])
+        
+        # 将内容区域添加到主布局
+        frame_layout.addWidget(content_widget)
+        
+        main_layout.addWidget(self.main_frame)
+        
+        # 创建视图
+        self.home_view = HomeView()
+        self.setting_view = SettingView()
+        
+        # 设置应用按钮的回调
+        self.setting_view.changes_made.connect(self.show_apply_button)
+        
+        # 添加到堆叠窗口
+        self.stacked_widget.addWidget(self.home_view)
+        self.stacked_widget.addWidget(self.setting_view)
+        
+        # 设置初始页面
+        self.current_view = self.home_view
+        self.nav_list.setCurrentRow(0)
+        
+        # 应用样式
+        self.apply_stylesheet()
+        
+        # 连接导航信号
+        self.nav_list.currentRowChanged.connect(self.switch_view)
+
+    def create_title_bar(self):
+        """创建自定义标题栏"""
+        title_bar = QFrame()
+        title_bar.setObjectName("titleBar")
+        title_bar.setFixedHeight(40)
+        
+        layout = QHBoxLayout(title_bar)
+        layout.setContentsMargins(10, 5, 10, 5)
+        layout.setSpacing(5)
+        
+        # 标题标签
+        self.title_label = QLabel("SMT2 工具箱")
+        self.title_label.setObjectName("titleLabel")
+        self.title_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        
+        # 最小化按钮
+        min_btn = QToolButton()
+        min_btn.setText("−")
+        min_btn.setObjectName("minimizeButton")
+        min_btn.setFixedSize(30, 30)
+        min_btn.clicked.connect(self.showMinimized)
+        
+        # 关闭按钮
+        close_btn = QToolButton()
+        close_btn.setText("×")
+        close_btn.setObjectName("closeButton")
+        close_btn.setFixedSize(30, 30)
+        close_btn.clicked.connect(self.hide)  # 改为隐藏而不是关闭
+        
+        layout.addWidget(self.title_label)
+        layout.addStretch()
+        layout.addWidget(min_btn)
+        layout.addWidget(close_btn)
+        
+        return title_bar
+
+    def create_nav_panel(self):
+        """创建导航面板"""
+        panel = QFrame()
+        panel.setObjectName("navPanel")
+        
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        
+        # 标题
+        title_label = QLabel("SMT2 工具箱")
+        title_label.setAlignment(Qt.AlignCenter)
+        title_label.setObjectName("titleLabel")
+        title_label.setStyleSheet("padding: 20px 0px 20px 0px; font-size: 16px; font-weight: bold;")
+        
+        # 导航列表
+        self.nav_list = QListWidget()
+        self.nav_list.setSpacing(5)
+        self.nav_list.setObjectName("navList")
+        
+        # 添加导航项
+        nav_items = [
+            {"name": "首页", "icon": None},
+            {"name": "设置", "icon": None},
+        ]
+        
+        for item in nav_items:
+            list_item = QListWidgetItem(item["name"])
+            list_item.setTextAlignment(Qt.AlignCenter)
+            self.nav_list.addItem(list_item)
+        
+        # 切换主题按钮
+        self.theme_button = QPushButton("切换主题")
+        self.theme_button.clicked.connect(self.toggle_theme)
+        self.theme_button.setObjectName("themeButton")
+        
+        layout.addWidget(title_label)
+        layout.addWidget(self.nav_list)
+        layout.addWidget(self.theme_button)
+        
+        return panel
+
+    def switch_view(self, index):
+        """切换视图"""
+        self.stacked_widget.setCurrentIndex(index)
+        if index == 0:
+            self.current_view = self.home_view
+        elif index == 1:
+            self.current_view = self.setting_view
+
+    def show_apply_button(self):
+        """显示应用按钮"""
+        self.apply_button.show()
+
+    def apply_changes(self):
+        """应用配置更改"""
+        self.setting_view.apply_changes()
+        self.apply_button.hide()
+
+    def mousePressEvent(self, event):
+        """处理鼠标按下事件以实现窗口拖动"""
+        if event.button() == Qt.LeftButton:
+            self.drag_start_position = event.globalPos() - self.frameGeometry().topLeft()
+            event.accept()
+
+    def mouseMoveEvent(self, event):
+        """处理鼠标移动事件以实现窗口拖动"""
+        if event.buttons() == Qt.LeftButton:
+            self.move(event.globalPos() - self.drag_start_position)
+            event.accept()
+
+    def toggle_theme(self):
+        """切换明暗主题"""
+        # 获取当前应用的调色板
+        palette = QApplication.instance().palette()
+        
+        # 检查当前是否为暗色主题
+        current_bg = palette.color(QPalette.Window)
+        is_dark = current_bg.lightness() < 128
+        
+        if is_dark:
+            # 切换到亮色主题
+            self.set_light_theme()
+        else:
+            # 切换到暗色主题
+            self.set_dark_theme()
+    
+    def set_light_theme(self):
+        """设置亮色主题"""
+        app = QApplication.instance()
+        palette = QPalette()
+        
+        # 设置颜色
+        palette.setColor(QPalette.Window, QColor(250, 250, 250))
+        palette.setColor(QPalette.WindowText, QColor(32, 32, 32))
+        palette.setColor(QPalette.Base, QColor(245, 245, 245))
+        palette.setColor(QPalette.AlternateBase, QColor(255, 255, 255))
+        palette.setColor(QPalette.ToolTipBase, QColor(255, 255, 255))
+        palette.setColor(QPalette.ToolTipText, QColor(0, 0, 0))
+        palette.setColor(QPalette.Text, QColor(32, 32, 32))
+        palette.setColor(QPalette.Button, QColor(240, 240, 240))
+        palette.setColor(QPalette.ButtonText, QColor(32, 32, 32))
+        palette.setColor(QPalette.BrightText, QColor(255, 0, 0))
+        palette.setColor(QPalette.Highlight, QColor(51, 153, 255))
+        palette.setColor(QPalette.HighlightedText, QColor(255, 255, 255))
+        
+        app.setPalette(palette)
+        self.apply_stylesheet(light=True)
+    
+    def set_dark_theme(self):
+        """设置暗色主题"""
+        app = QApplication.instance()
+        palette = QPalette()
+        
+        # 设置颜色
+        palette.setColor(QPalette.Window, QColor(32, 32, 32))
+        palette.setColor(QPalette.WindowText, QColor(250, 250, 250))
+        palette.setColor(QPalette.Base, QColor(45, 45, 45))
+        palette.setColor(QPalette.AlternateBase, QColor(35, 35, 35))
+        palette.setColor(QPalette.ToolTipBase, QColor(0, 0, 0))
+        palette.setColor(QPalette.ToolTipText, QColor(250, 250, 250))
+        palette.setColor(QPalette.Text, QColor(250, 250, 250))
+        palette.setColor(QPalette.Button, QColor(50, 50, 50))
+        palette.setColor(QPalette.ButtonText, QColor(250, 250, 250))
+        palette.setColor(QPalette.BrightText, QColor(255, 0, 0))
+        palette.setColor(QPalette.Highlight, QColor(0, 120, 215))
+        palette.setColor(QPalette.HighlightedText, QColor(255, 255, 255))
+        
+        app.setPalette(palette)
+        self.apply_stylesheet(light=False)
+
+    def apply_stylesheet(self, light=True):
+        """应用样式表"""
+        if light:
+            # 亮色主题样式
+            style = """
+                #mainFrame {
+                    background-color: #ffffff;
+                    border-radius: 10px;
+                    border: 1px solid #d9d9d9;
+                }
+                #titleBar {
+                    background-color: #ffffff;
+                    border-bottom: 1px solid #e0e0e0;
+                    border-top-left-radius: 10px;
+                    border-top-right-radius: 10px;
+                }
+                #titleLabel {
+                    color: #333333;
+                    font-weight: bold;
+                    font-size: 12px;
+                }
+                #minimizeButton, #closeButton {
+                    background-color: #f0f0f0;
+                    border: 1px solid #d9d9d9;
+                    border-radius: 4px;
+                    font-weight: bold;
+                    color: #333;
+                }
+                #minimizeButton:hover {
+                    background-color: #e6e6e6;
+                }
+                #closeButton:hover {
+                    background-color: #ff5555;
+                    color: white;
+                }
+                #navPanel {
+                    background-color: #ffffff;
+                    border-right: 1px solid #e0e0e0;
+                }
+                #navList {
+                    background-color: #ffffff;
+                    border: none;
+                    padding: 10px 0px;
+                }
+                #navList::item {
+                    height: 40px;
+                    padding: 5px;
+                    color: #666666;
+                }
+                #navList::item:selected {
+                    background-color: #e6f7ff;
+                    color: #1890ff;
+                    border-left: 3px solid #1890ff;
+                }
+                #contentPanel {
+                    background-color: #fafafa;
+                }
+                #themeButton {
+                    background-color: #f0f0f0;
+                    border: 1px solid #d9d9d9;
+                    padding: 8px;
+                    margin: 10px;
+                    border-radius: 4px;
+                    color: #333;
+                }
+                #themeButton:hover {
+                    background-color: #e6f7ff;
+                    border-color: #1890ff;
+                }
+                #applyButton {
+                    background-color: #1890ff;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    font-weight: bold;
+                }
+                #applyButton:hover {
+                    background-color: #40a9ff;
+                }
+            """
+        else:
+            # 暗色主题样式
+            style = """
+                #mainFrame {
+                    background-color: #2d2d2d;
+                    border-radius: 10px;
+                    border: 1px solid #444444;
+                }
+                #titleBar {
+                    background-color: #2d2d2d;
+                    border-bottom: 1px solid #444444;
+                    border-top-left-radius: 10px;
+                    border-top-right-radius: 10px;
+                }
+                #titleLabel {
+                    color: #eeeeee;
+                    font-weight: bold;
+                    font-size: 12px;
+                }
+                #minimizeButton, #closeButton {
+                    background-color: #3c3c3c;
+                    border: 1px solid #555555;
+                    border-radius: 4px;
+                    font-weight: bold;
+                    color: #ffffff;
+                }
+                #minimizeButton:hover {
+                    background-color: #4a4a4a;
+                }
+                #closeButton:hover {
+                    background-color: #ff5555;
+                    color: white;
+                }
+                #navPanel {
+                    background-color: #202020;
+                    border-right: 1px solid #444444;
+                }
+                #navList {
+                    background-color: #202020;
+                    border: none;
+                    padding: 10px 0px;
+                }
+                #navList::item {
+                    height: 40px;
+                    padding: 5px;
+                    color: #aaaaaa;
+                }
+                #navList::item:selected {
+                    background-color: #1a233a;
+                    color: #5d8ad0;
+                    border-left: 3px solid #5d8ad0;
+                }
+                #contentPanel {
+                    background-color: #2d2d2d;
+                }
+                #themeButton {
+                    background-color: #333333;
+                    border: 1px solid #555555;
+                    padding: 8px;
+                    margin: 10px;
+                    border-radius: 4px;
+                    color: #ffffff;
+                }
+                #themeButton:hover {
+                    background-color: #444444;
+                    border-color: #5d8ad0;
+                }
+                #applyButton {
+                    background-color: #1890ff;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    font-weight: bold;
+                }
+                #applyButton:hover {
+                    background-color: #40a9ff;
+                }
+            """
+        
+        self.setStyleSheet(style)
+        
+        # 同时应用到子组件
+        self.main_frame.setStyleSheet(style)
