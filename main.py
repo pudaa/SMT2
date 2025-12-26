@@ -4,8 +4,8 @@ import psutil
 import ctypes
 from PySide6.QtWidgets import QApplication, QSystemTrayIcon
 from PySide6.QtCore import Qt, QTimer
-from src.components.main_widget import MainWidget
-from src.components.system_tray import SystemTrayIcon
+from src.views.main_views.main_widget import MainWidget
+from src.tray.system_tray import SystemTrayIcon
 
 def main():
     QApplication.setHighDpiScaleFactorRoundingPolicy(

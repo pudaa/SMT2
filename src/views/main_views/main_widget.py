@@ -1,8 +1,8 @@
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QApplication
 from PySide6.QtGui import QMouseEvent, QShowEvent
 from PySide6.QtCore import  QTimer, Qt, QPoint, QPropertyAnimation, QEasingCurve, Property
-from src.components.performance_panel import PerformancePanel
-from src.components.todo_panel import TodoPanel, TodoItemWidget
+from src.views.main_views.performance_panel import PerformancePanel
+from src.views.main_views.todo_panel import TodoPanel, TodoItemWidget
 from src.utils.performance_monitor import PerformanceMonitor
 import sys
 import ctypes

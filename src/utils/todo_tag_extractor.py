@@ -7,11 +7,9 @@ JIEBA_AVAILABLE = get_extractor_model() == 'jieba'
 
 class TodoTagExtractor:
     """
-    从待办事项中提取标签的工具类，根据配置选择使用jieba进行中文分词和词性标注，
-    或使用轻量级的自定义算法
+    从待办事项中提取标签的工具类
     """
     
-    # jieba加载状态
     _jieba_loaded = False
     
     # 停用词列表
@@ -42,20 +40,16 @@ class TodoTagExtractor:
         if not text or not isinstance(text, str):
             return []
         
-        # 清理文本
         text = text.strip()
         if not text:
             return []
         
-        # 如果jieba可用，使用jieba进行中文分词和词性标注
         if JIEBA_AVAILABLE:
             try:
                 return TodoTagExtractor._extract_with_jieba(text)
             except Exception:
-                # 如果jieba处理失败，降级到轻量级提取器
                 return TodoTagExtractor._extract_with_regex(text)
         else:
-            # 否则使用轻量级提取器
             return TodoTagExtractor._extract_with_regex(text)
     
     @staticmethod
@@ -87,14 +81,11 @@ class TodoTagExtractor:
             # 分词并标注词性
             words = pseg.cut(text)
             
-            # 提取名词(n)、英文(eng)等作为标签
             tags = []
             for word, flag in words:
-                # 跳过停用词
                 if word in TodoTagExtractor.CHINESE_STOPWORDS or word in TodoTagExtractor.ENGLISH_STOPWORDS:
                     continue
                 
-                # 选择合适的词性或自定义词，转为tuple
                 if flag.startswith(tuple(get_todo_poses())) or word in education_tech_words:  # 名词、英文或自定义词
                     if len(word) > 1 or ('\u4e00' <= word <= '\u9fff'):
                         tags.append(word)
@@ -117,7 +108,6 @@ class TodoTagExtractor:
             return unique_tags
             
         except Exception as e:
-            # 如果jieba处理失败，降级到轻量级提取器
             print(f"Jieba extraction failed: {e}")
             return TodoTagExtractor._extract_with_regex(text)
     
