@@ -15,7 +15,7 @@ class Switch(QWidget):
     
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedSize(50, 26)  # 设置开关大小
+        self.setFixedSize(50, 26) 
         self.is_checked = False
         self.animation = QPropertyAnimation(self, b"geometry", self)
         self.animation.setDuration(200)  # 动画持续时间
@@ -104,7 +104,7 @@ class ToolBoxWindow(QWidget):
         
         # 主布局
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(10, 10, 10, 10)  # 添加边距以显示圆角
+        main_layout.setContentsMargins(10, 10, 10, 10) 
         
         # 创建主内容框架（带圆角）
         self.main_frame = QFrame()
@@ -147,11 +147,12 @@ class ToolBoxWindow(QWidget):
         self.apply_button = QPushButton("应用")
         self.apply_button.setObjectName("applyButton")
         self.apply_button.setFixedSize(80, 30)
-        self.apply_button.hide()  # 初始隐藏
+        self.apply_button.hide()
         self.apply_button.clicked.connect(self.apply_changes)
         
-        # 创建一个定位应用按钮的布局
+        # 创建一个定位应用按钮的透明布局
         self.apply_container = QWidget()
+        self.apply_container.setObjectName("applyContainer")
         apply_container_layout = QHBoxLayout(self.apply_container)
         apply_container_layout.setContentsMargins(0, 0, 10, 10)
         apply_container_layout.addStretch()
@@ -291,12 +292,27 @@ class ToolBoxWindow(QWidget):
             self.current_view = self.setting_view
 
     def show_apply_button(self):
-        """显示应用按钮"""
-        self.apply_button.show()
+        """显示或隐藏应用按钮，根据配置是否被修改"""
+        # 检查配置是否被修改
+        if self.is_config_modified():
+            self.apply_button.show()
+        else:
+            self.apply_button.hide()
+    
+    def is_config_modified(self):
+        """检查配置是否被修改"""
+        # 获取setting_view的当前配置和原始配置
+        current_config = self.setting_view.config_data
+        original_config = self.setting_view.original_config
+        
+        # 比较两个配置是否相同
+        import json
+        return json.dumps(current_config, sort_keys=True) != json.dumps(original_config, sort_keys=True)
 
     def apply_changes(self):
         """应用配置更改"""
         self.setting_view.apply_changes()
+        # 隐藏应用按钮
         self.apply_button.hide()
 
     def mousePressEvent(self, event):
@@ -368,6 +384,20 @@ class ToolBoxWindow(QWidget):
             
             #themeButton:hover {
                 background-color: #f5f5f5;
+            }
+            
+            
+            /* 分割器样式 */
+            QSplitter::handle {
+                background-color: #e0e0e0;
+            }
+            
+            QSplitter::handle:horizontal {
+                width: 1px;
+            }
+            
+            QSplitter::handle:vertical {
+                height: 1px;
             }
             
             /* 导航列表项样式 */
@@ -508,6 +538,18 @@ class ToolBoxWindow(QWidget):
                 background-color: #404040;
             }
             
+            /* 分割器样式 */
+            QSplitter::handle {
+                background-color: #404040;
+            }
+            
+            QSplitter::handle:horizontal {
+                width: 1px;
+            }
+            
+            QSplitter::handle:vertical {
+                height: 1px;
+            }
             /* 导航列表项样式 */
             QListWidget#navList {
                 background-color: #2b2b2b;

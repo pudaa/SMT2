@@ -1,5 +1,6 @@
 import json
 import os
+from src.configs.defaul_config import *
 
 # 全局配置变量
 _properties = {}

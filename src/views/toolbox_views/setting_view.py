@@ -1,12 +1,14 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QScrollArea, QGroupBox, QFormLayout, 
     QLineEdit, QPushButton, QHBoxLayout, QLabel, QComboBox, 
-    QCheckBox, QColorDialog, QFrame, QSizePolicy, QToolButton, QSpacerItem
+    QCheckBox, QColorDialog, QFrame, QSizePolicy, QToolButton, QSpacerItem,
+    QSpinBox
 )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor
 import json
 import os
+from src.configs.defaul_config import defaul_config
 
 
 class SettingView(QScrollArea):
@@ -20,6 +22,10 @@ class SettingView(QScrollArea):
         self.config_data = self.load_config()
         self.original_config = self.config_data.copy()  # 保存原始配置用于恢复
         
+        # 用于跟踪配置是否被修改
+        self.config_modified = False
+        self.default_config = defaul_config()
+        
         # 主控件
         self.scrollWidget = QWidget()
         self.scrollWidget.setObjectName("scrollWidget")
@@ -30,8 +36,76 @@ class SettingView(QScrollArea):
         self.main_layout = QVBoxLayout(self.scrollWidget)
         self.main_layout.setAlignment(Qt.AlignTop)
         
+        # 添加恢复默认按钮
+        self.add_reset_button()
+        
         # 创建配置卡片
         self.create_cards()
+    
+    def add_reset_button(self):
+        """添加恢复默认按钮"""
+        reset_layout = QHBoxLayout()
+        reset_layout.addStretch()  # 添加弹性空间
+        
+        reset_btn = QPushButton("恢复默认")
+        reset_btn.clicked.connect(self.reset_to_default)
+        reset_btn.setMaximumWidth(100)
+        reset_btn.setMinimumHeight(30)
+        
+        reset_layout.addWidget(reset_btn)
+        self.main_layout.addLayout(reset_layout)
+    
+    def reset_to_default(self):
+        """恢复到默认配置"""
+        # 加载默认配置文件
+        default_config_path = "resources/default_properties.json"
+        if os.path.exists(default_config_path):
+            # 从默认配置文件加载
+            with open(default_config_path, 'r', encoding='utf-8') as f:
+                default_config = json.load(f)
+        else:
+            # 如果没有默认配置文件，使用硬编码的默认值
+            default_config = self.default_config.get_default_properties()
+        
+        # 更新当前配置
+        self.config_data = default_config.copy()
+        
+        # 重新创建所有配置卡片
+        self.recreate_all_cards()
+        
+        # 重置修改标志
+        self.config_modified = False
+        
+        # 发出更改信号，通知应用按钮可以隐藏
+        self.changes_made.emit()
+    
+    def recreate_all_cards(self):
+        """重新创建所有配置卡片"""
+        # 清除现有布局
+        for i in reversed(range(self.main_layout.count())):
+            item = self.main_layout.itemAt(i)
+            if item.widget() and item.widget().objectName() not in ["scrollWidget"]:
+                item.widget().setParent(None)
+            elif item.layout():
+                # 不删除恢复默认按钮的布局
+                if not (item.layout().itemAt(0) and isinstance(item.layout().itemAt(0).widget(), QPushButton) and 
+                        item.layout().itemAt(0).widget().text() == "恢复默认"):
+                    self.clear_layout(item.layout())
+        
+        # 重新添加恢复默认按钮
+        self.add_reset_button()
+        
+        # 重新创建配置卡片
+        self.create_cards()
+    
+    def clear_layout(self, layout):
+        """递归清理布局中的所有子项"""
+        for i in reversed(range(layout.count())):
+            item = layout.itemAt(i)
+            if item.widget():
+                item.widget().setParent(None)
+            elif item.layout():
+                self.clear_layout(item.layout())
     
     def load_config(self):
         """加载配置文件"""
@@ -48,6 +122,8 @@ class SettingView(QScrollArea):
     def apply_changes(self):
         """应用更改到配置文件"""
         self.save_config()
+        # 重置修改标志
+        self.config_modified = False
     
     def create_cards(self):
         """创建配置卡片"""
@@ -107,7 +183,12 @@ class SettingView(QScrollArea):
         """创建列表项"""
         # 清除现有项
         for i in reversed(range(layout.count())):
-            layout.itemAt(i).widget().setParent(None)
+            item = layout.itemAt(i)
+            if item.widget():
+                item.widget().setParent(None)
+            elif item.layout():
+                # 如果是布局，需要递归清理
+                self.clear_layout(item.layout())
         
         for i, value in enumerate(values):
             item_layout = QHBoxLayout()
@@ -209,7 +290,7 @@ class SettingView(QScrollArea):
             
             # 颜色名称标签
             label = QLabel(color_key.replace('_', ' ').title() + ":")
-            label.setMinimumWidth(200)
+            label.setMinimumWidth(150)
             color_layout.addWidget(label)
             
             # 添加弹簧以将按钮推到右侧
@@ -230,6 +311,23 @@ class SettingView(QScrollArea):
             
             color_layout.addWidget(color_btn)
             
+            # Alpha值编辑
+            alpha_label = QLabel("a:")
+            alpha_label.setMaximumWidth(40)
+            color_layout.addWidget(alpha_label)
+            
+            # Alpha值显示和编辑
+            alpha_spinbox = QSpinBox()
+            alpha_spinbox.setRange(0, 255)
+            alpha_spinbox.setValue(qcolor.alpha())
+            alpha_spinbox.setMaximumWidth(70)
+            alpha_spinbox.setMinimumWidth(60)
+            alpha_spinbox.valueChanged.connect(
+                lambda value, ck=color_key, cb=color_btn, sb=alpha_spinbox: self.update_alpha(ck, cb, sb, value)
+            )
+            
+            color_layout.addWidget(alpha_spinbox)
+            
             # 颜色值显示
             color_value_label = QLabel(f"{qcolor.name()}")
             color_value_label.setMinimumWidth(100)
@@ -239,10 +337,32 @@ class SettingView(QScrollArea):
             color_btn.color_value_label = color_value_label
             color_btn.qcolor = qcolor
             color_btn.color_key = color_key
+            color_btn.alpha_spinbox = alpha_spinbox
             
             layout.addLayout(color_layout)
         
         self.main_layout.addWidget(group)
+
+    def update_alpha(self, color_key, color_btn, alpha_spinbox, value):
+        """更新alpha值"""
+        # 获取当前颜色
+        current_color = color_btn.qcolor
+        new_color = QColor(current_color.red(), current_color.green(), current_color.blue(), value)
+        
+        # 更新配置
+        current_colors = self.config_data.get("colors", {})
+        color_list = [current_color.red(), current_color.green(), current_color.blue(), value]
+        current_colors[color_key] = color_list
+        self.config_data["colors"] = current_colors
+        self.save_config()
+        
+        # 更新按钮样式
+        color_btn.setStyleSheet(f"background-color: {new_color.name()}; color: {'white' if new_color.lightness() < 128 else 'black'};")
+        color_btn.qcolor = new_color
+        color_btn.color_value_label.setText(f"{new_color.name()}")
+        
+        # 发出更改信号
+        self.changes_made.emit()
     
     def convert_to_qcolor(self, color_value):
         """将配置中的颜色值转换为QColor对象"""
@@ -298,6 +418,7 @@ class SettingView(QScrollArea):
                     value = False
         
         self.config_data[key] = value
+        self.config_modified = True
         self.changes_made.emit()
     
     def on_config_changed_in_dict(self, dict_key, sub_key, value):
@@ -322,4 +443,5 @@ class SettingView(QScrollArea):
         # 更新字典
         current_dict[sub_key] = value
         self.config_data[dict_key] = current_dict
+        self.config_modified = True
         self.changes_made.emit()

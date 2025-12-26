@@ -17,7 +17,6 @@ class HomeView(QWidget):
         title_label.setStyleSheet("""
             font-size: 24px;
             font-weight: bold;
-            color: #333;
             padding: 20px;
             background-color: transparent;
         """)
@@ -27,7 +26,6 @@ class HomeView(QWidget):
         desc_label.setAlignment(Qt.AlignCenter)
         desc_label.setStyleSheet("""
             font-size: 16px;
-            color: #666;
             padding: 10px;
             background-color: transparent;
         """)
@@ -44,7 +42,6 @@ class HomeView(QWidget):
         features_label.setAlignment(Qt.AlignCenter)
         features_label.setStyleSheet("""
             font-size: 14px;
-            color: #555;
             padding: 20px;
             background-color: transparent;
         """)

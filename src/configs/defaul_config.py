@@ -1,0 +1,164 @@
+import json
+import os
+
+class defaul_config():
+    def __init__(self):
+        self.default_properties = {
+            "todo_file_name": "resources/todos.json",
+            "extractor_model": "jieba",
+            "todo_poses": [
+                "n",
+                "eng"
+            ],
+            "font": "Microsoft YaHei UI",
+            "colors": {
+                "performance_panel_background": [
+                    50,
+                    50,
+                    50,
+                    200
+                ],
+                "performance_panel_shadow": [
+                    0,
+                    0,
+                    0,
+                    80
+                ],
+                "performance_panel_time": [
+                    255,
+                    255,
+                    255
+                ],
+                "performance_panel_progress_ring_background": [
+                    70,
+                    70,
+                    70,
+                    150
+                ],
+                "performance_panel_progress_ring_foreground": [
+                    200,
+                    200,
+                    200
+                ],
+                "performance_panel_progress_title": [
+                    200,
+                    200,
+                    200
+                ],
+                "performance_panel_progress_text": [
+                    200,
+                    200,
+                    200
+                ],
+                "todo_panel_todoitem_background": [
+                    50,
+                    50,
+                    50,
+                    100
+                ],
+                "todo_panel_todoitem_foreground": [
+                    204,
+                    204,
+                    204
+                ],
+                "todo_panel_todoitem_checkbox_unchecked_border": [
+                    136,
+                    136,
+                    136
+                ],
+                "todo_panel_todoitem_checkbox_checked_border": [
+                    85,
+                    85,
+                    85
+                ],
+                "todo_panel_todoitem_checkbox_checked_background": [
+                    74,
+                    144,
+                    226
+                ],
+                "todo_panel_todoitem_lineedit_foreground": [
+                    204,
+                    204,
+                    204
+                ],
+                "todo_panel_todoitem_lineedit_focus": [
+                    74,
+                    144,
+                    226
+                ],
+                "todo_panel_todoitem_lineedit_finished": [
+                    136,
+                    136,
+                    136
+                ],
+                "todo_panel_todoitem_draglabel": [
+                    136,
+                    136,
+                    136
+                ],
+                "todo_panel_titlelabel_foreground": [
+                    204,
+                    204,
+                    204
+                ],
+                "todo_panel_titlelabel_background": [
+                    50,
+                    50,
+                    50,
+                    200
+                ],
+                "todo_panel_tagscrollarea_background": [
+                    50,
+                    50,
+                    50,
+                    200
+                ],
+                "todo_panel_tagbutton_background": [
+                    102,
+                    102,
+                    102
+                ],
+                "todo_panel_tagbutton_foreground": [
+                    204,
+                    204,
+                    204
+                ],
+                "todo_panel_tagbutton_checked_background": [
+                    74,
+                    144,
+                    226
+                ],
+                "todo_panel_tagbutton_checked_foreground": [
+                    255,
+                    255,
+                    255
+                ],
+                "todo_panel_tagbutton_check_hover_background": [
+                    119,
+                    119,
+                    119
+                ],
+                "todo_panel_tagbutton_checked_hover_background": [
+                    90,
+                    160,
+                    240
+                ],
+                "todo_panel_scrollarea_background": [
+                    50,
+                    50,
+                    50,
+                    200
+                ],
+                "todo_panel_scrollbar_background": [
+                    85,
+                    85,
+                    85
+                ]
+            }
+        }
+        
+        self.defult_todos = []
+        
+    def get_default_properties(self):
+        return self.default_properties
+        
