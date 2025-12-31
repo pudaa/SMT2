@@ -32,7 +32,7 @@ class HomeView(QWidget):
         
         # 添加功能列表
         features_label = QLabel("""
-        <ul style="text-align: left; margin-left: 50px;">
+        <ul style="text-align: left; margin-left: 80px;">
             <li>配置管理 - 轻松管理应用配置</li>
             <li>主题切换 - 支持明暗主题切换</li>
             <li>窗口置顶 - 快速置顶任意窗口</li>
