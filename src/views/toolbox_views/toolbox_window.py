@@ -141,7 +141,7 @@ class ToolBoxWindow(QWidget):
         close_btn.setText("×")
         close_btn.setObjectName("closeButton")
         close_btn.setFixedSize(30, 30)
-        close_btn.clicked.connect(self.hide)  # 改为隐藏而不是关闭
+        close_btn.clicked.connect(self.hide) 
         
         layout.addWidget(self.title_label)
         layout.addStretch()

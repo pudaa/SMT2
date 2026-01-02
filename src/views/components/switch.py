@@ -2,7 +2,7 @@ from PySide6.QtWidgets import (QWidget, QHBoxLayout, QVBoxLayout, QFrame,
                                QListWidget, QListWidgetItem, QStackedWidget,
                                QApplication, QLabel, QPushButton, QSplitter,
                                QToolButton)
-from PySide6.QtCore import Qt, QSize, Signal, QPoint, QPropertyAnimation, QEasingCurve, QRect
+from PySide6.QtCore import Qt, QSize, Signal, QPoint, QPropertyAnimation, QEasingCurve, QRect, Property
 from PySide6.QtGui import QIcon, QPalette, QColor, QPainter, QPen
 
 
@@ -14,11 +14,24 @@ class Switch(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFixedSize(50, 26) 
+        self._slider_position = 4  # 初始位置
         self.is_checked = False
-        self.animation = QPropertyAnimation(self, b"geometry", self)
-        self.animation.setDuration(200)  # 动画持续时间
-        self.animation.setEasingCurve(QEasingCurve.InOutCubic)
         
+        # 创建一个可动画的属性来控制滑块位置
+        self.anim = QPropertyAnimation(self, b"slider_position")
+        self.anim.setDuration(200)  # 动画持续时间
+        self.anim.setEasingCurve(QEasingCurve.InOutCubic)
+        
+    def get_slider_position(self):
+        return self._slider_position
+        
+    def set_slider_position(self, pos):
+        self._slider_position = pos
+        self.update()  # 更新界面以反映新位置
+        
+    # 使用PySide6的Property，这样QPropertyAnimation才能识别
+    slider_position = Property(float, get_slider_position, set_slider_position)
+    
     def paintEvent(self, event):
         """绘制开关"""
         painter = QPainter(self)
@@ -54,12 +67,8 @@ class Switch(QWidget):
         else:
             painter.setBrush(QColor(255, 255, 255))  # 浅色主题下的滑块颜色
             
-        if self.is_checked:
-            slider_x = self.width() - 24  # 开启状态下滑块位置
-        else:
-            slider_x = 4  # 关闭状态下滑块位置
-            
-        painter.drawEllipse(slider_x, 3, 20, 20)
+        # 使用动画控制的滑块位置
+        painter.drawEllipse(self._slider_position, 3, 20, 20)
     
     def mousePressEvent(self, event):
         """处理鼠标点击事件"""
@@ -70,16 +79,34 @@ class Switch(QWidget):
     def toggle(self):
         """切换开关状态"""
         self.is_checked = not self.is_checked
-        self.update()
+        
+        # 根据开关状态设置动画目标值
+        if self.is_checked:
+            self.anim.setStartValue(4)  # 关闭状态位置
+            self.anim.setEndValue(self.width() - 24)  # 开启状态位置
+        else:
+            self.anim.setStartValue(self.width() - 24)  # 开启状态位置
+            self.anim.setEndValue(4)  # 关闭状态位置
+        
+        self.anim.start()  # 启动动画
         self.toggled.emit(self.is_checked)  # 发射信号
     
     def setChecked(self, checked):
         """设置开关状态"""
         if self.is_checked != checked:
             self.is_checked = checked
-            self.update()
+            
+            # 根据开关状态设置动画目标值
+            if self.is_checked:
+                self.anim.setStartValue(self._slider_position)
+                self.anim.setEndValue(self.width() - 24)  # 开启状态位置
+            else:
+                self.anim.setStartValue(self._slider_position)
+                self.anim.setEndValue(4)  # 关闭状态位置
+            
+            self.anim.start()  # 启动动画
             self.toggled.emit(self.is_checked)  # 发射信号
     
-    def isChecked(self):
+    def isChecked(self) -> bool:
         """获取开关状态"""
         return self.is_checked
