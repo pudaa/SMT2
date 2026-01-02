@@ -8,7 +8,6 @@ from PySide6.QtGui import QIcon, QPalette, QColor, QPainter, QPen
 
 class Switch(QWidget):
     """自定义开关组件"""
-    # 添加toggled信号
     toggled = Signal(bool)
     
     def __init__(self, parent=None):
@@ -29,7 +28,6 @@ class Switch(QWidget):
         self._slider_position = pos
         self.update()  # 更新界面以反映新位置
         
-    # 使用PySide6的Property，这样QPropertyAnimation才能识别
     slider_position = Property(float, get_slider_position, set_slider_position)
     
     def paintEvent(self, event):
@@ -46,7 +44,8 @@ class Switch(QWidget):
                 break
             parent = parent.parent()
         
-        # 绘制背景
+        # 绘制背景 - 使用高度的一半作为圆角半径实现胶囊形状
+        radius = self.height() // 2
         if self.is_checked:
             if is_dark_theme:
                 painter.setBrush(QColor(100, 150, 255))  # 深色主题下开启状态的蓝色
@@ -59,16 +58,20 @@ class Switch(QWidget):
                 painter.setBrush(QColor(180, 180, 180))  # 浅色主题下关闭状态的灰色
         
         painter.setPen(Qt.NoPen)
-        painter.drawRoundedRect(0, 0, self.width(), self.height(), 13, 13)
+        painter.drawRoundedRect(0, 0, self.width(), self.height(), radius, radius)
         
-        # 绘制滑块
+        # 绘制滑块 - 根据控件尺寸动态计算滑块大小
         if is_dark_theme:
             painter.setBrush(QColor(240, 240, 240))  # 深色主题下的滑块颜色
         else:
             painter.setBrush(QColor(255, 255, 255))  # 浅色主题下的滑块颜色
             
+        # 计算滑块尺寸 - 滑块高度比控件高度小一点，宽度等于高度（圆形）
+        slider_size = self.height() - 6  # 6px边距
+        slider_y = 3  # 3px边距
+        
         # 使用动画控制的滑块位置
-        painter.drawEllipse(self._slider_position, 3, 20, 20)
+        painter.drawEllipse(int(self._slider_position), slider_y, slider_size, slider_size)
     
     def mousePressEvent(self, event):
         """处理鼠标点击事件"""
@@ -82,13 +85,13 @@ class Switch(QWidget):
         
         # 根据开关状态设置动画目标值
         if self.is_checked:
-            self.anim.setStartValue(4)  # 关闭状态位置
-            self.anim.setEndValue(self.width() - 24)  # 开启状态位置
+            self.anim.setStartValue(self._slider_position)  # 当前位置
+            self.anim.setEndValue(self.width() - self.height() + 3)  # 开启状态位置，减去滑块半径
         else:
-            self.anim.setStartValue(self.width() - 24)  # 开启状态位置
-            self.anim.setEndValue(4)  # 关闭状态位置
+            self.anim.setStartValue(self._slider_position)  # 当前位置
+            self.anim.setEndValue(3)  # 关闭状态位置，加上滑块半径
         
-        self.anim.start()  # 启动动画
+        self.anim.start() 
         self.toggled.emit(self.is_checked)  # 发射信号
     
     def setChecked(self, checked):
@@ -99,10 +102,10 @@ class Switch(QWidget):
             # 根据开关状态设置动画目标值
             if self.is_checked:
                 self.anim.setStartValue(self._slider_position)
-                self.anim.setEndValue(self.width() - 24)  # 开启状态位置
+                self.anim.setEndValue(self.width() - self.height() + 3)  # 开启状态位置
             else:
                 self.anim.setStartValue(self._slider_position)
-                self.anim.setEndValue(4)  # 关闭状态位置
+                self.anim.setEndValue(3)  # 关闭状态位置
             
             self.anim.start()  # 启动动画
             self.toggled.emit(self.is_checked)  # 发射信号

@@ -1,0 +1,184 @@
+/* 深色主题样式 */
+#mainFrame {
+    background-color: #2b2b2b;
+    border: 1px solid #404040;
+    border-radius: 15px;
+}
+
+#titleBar {
+    background-color: #2b2b2b;
+    border-bottom: 1px solid #404040;
+    border-top-left-radius: 15px;
+    border-top-right-radius: 15px;
+}
+
+#navPanel {
+    background-color: #2b2b2b;
+    border-right: 1px solid #404040;
+    border-bottom-left-radius: 15px;
+}
+
+#contentPanel {
+    background-color: #2b2b2b;
+    border-bottom-right-radius: 15px;
+}
+
+#applyContainer {
+    background-color: transparent;
+}
+
+#themeButton {
+    background-color: #2b2b2b;
+    border: 1px solid #404040;
+    border-radius: 15px;
+    padding: 15px;
+    color: #ffffff;
+}
+
+#themeButton:hover {
+    background-color: #404040;
+}
+
+/* 分割器样式 */
+QSplitter::handle {
+    background-color: #404040;
+}
+
+QSplitter::handle:horizontal {
+    width: 1px;
+}
+
+QSplitter::handle:vertical {
+    height: 1px;
+}
+
+/* 导航列表项样式 */
+QListWidget#navList {
+    background-color: #2b2b2b;
+    border: none;
+    outline: none;
+    border-radius: 10px;
+}
+
+QListWidget#navList::item {
+    background-color: #2b2b2b;
+    border: none;
+    padding: 8px 16px;
+    margin: 2px 0;
+    border-radius: 8px;
+    color: #ffffff;
+}
+
+QListWidget#navList::item:selected {
+    background-color: #404040;
+    color: #ffffff;
+}
+
+QListWidget#navList::item:hover {
+    background-color: #404040;
+}
+
+/* 首页视图样式 */
+#homeView {
+    background-color: #2b2b2b;
+    border-radius: 10px;
+}
+
+#scrollWidget {
+    background-color: #2b2b2b;
+    border-radius: 10px;
+}
+
+/* 设置视图样式 */
+#settingView {
+    background-color: #2b2b2b;
+    border-radius: 10px;
+}
+
+QGroupBox {
+    background-color: #2b2b2b;
+    border: 1px solid #404040;
+    border-radius: 10px;
+    margin-top: 10px;
+    padding-top: 10px;
+    color: #ffffff;
+}
+
+QGroupBox::title {
+    /* subcontrol-origin: margin; */
+    left: 10px;
+    padding: 0 5px 0 5px;
+    color: #ffffff;
+}
+
+QLineEdit {
+    background-color: #2b2b2b;
+    border: 1px solid #404040;
+    border-radius: 5px;
+    padding: 5px;
+    color: #ffffff;
+}
+
+QPushButton {
+    background-color: #2b2b2b;
+    border: 1px solid #404040;
+    border-radius: 5px;
+    padding: 5px 10px;
+    color: #ffffff;
+}
+
+QPushButton:hover {
+    background-color: #404040;
+}
+
+QToolButton {
+    background-color: #2b2b2b;
+    border: 1px solid #404040;
+    border-radius: 5px;
+    padding: 2px;
+    color: #ffffff;
+}
+
+QToolButton:hover {
+    background-color: #404040;
+}
+
+QLabel {
+    background-color: transparent;
+    color: #ffffff;
+}
+
+/* Switch开关样式 */
+Switch {
+    background-color: #555555;
+    border-radius: 10px;
+    padding: 2px;
+    min-width: 40px;
+    max-width: 40px;
+    min-height: 24px;
+    max-height: 24px;
+}
+
+Switch::groove {
+    background-color: #555555;
+    border-radius: 10px;
+    width: 36px;
+    height: 20px;
+}
+
+Switch::handle {
+    background-color: #cccccc;
+    border-radius: 9px;
+    width: 18px;
+    height: 18px;
+    margin: 1px;
+    border: 1px solid #aaaaaa;
+}
+
+Switch:checked {
+    background-color: #0078d4;
+}
+
+Switch:checked::groove {
+    background-color: #0078d4;
+}

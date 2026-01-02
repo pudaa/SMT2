@@ -7,6 +7,7 @@ from PySide6.QtGui import QIcon, QPalette, QColor, QPainter, QPen
 from .home_view import HomeView
 from .setting_view import SettingView
 from src.views.components.switch import Switch
+from src.utils.theme_manager import ThemeManager
 
 
 class ToolBoxWindow(QWidget):
@@ -20,6 +21,9 @@ class ToolBoxWindow(QWidget):
         
         # 设置窗口图标
         self.setWindowIcon(QIcon("resources/tray.png"))
+        
+        # 初始化主题管理器
+        self.theme_manager = ThemeManager()
         
         # 初始化主题状态
         self.is_dark_theme = False
@@ -216,7 +220,6 @@ class ToolBoxWindow(QWidget):
 
     def show_apply_button(self):
         """显示或隐藏应用按钮，根据配置是否被修改"""
-        # 检查配置是否被修改
         if self.is_config_modified():
             self.apply_button.show()
         else:
@@ -224,7 +227,6 @@ class ToolBoxWindow(QWidget):
     
     def is_config_modified(self):
         """检查配置是否被修改"""
-        # 获取setting_view的当前配置和原始配置
         current_config = self.setting_view.config_data
         original_config = self.setting_view.original_config
         
@@ -252,320 +254,23 @@ class ToolBoxWindow(QWidget):
 
     def toggle_theme(self):
         """切换明暗主题"""
-        if self.is_dark_theme:
-            # 切换到亮色主题
-            self.set_light_theme()
-            self.is_dark_theme = False
-        else:
-            # 切换到暗色主题
-            self.set_dark_theme()
-            self.is_dark_theme = True
+        theme_style = self.theme_manager.toggle_theme()
+        self.is_dark_theme = self.theme_manager.is_dark_theme
+        self.apply_stylesheet()
     
     def apply_stylesheet(self):
         """应用样式表"""
-        if self.is_dark_theme:
-            self.set_dark_theme()
-        else:
-            self.set_light_theme()
+        theme_style = self.theme_manager.get_current_theme()
+        self.setStyleSheet(theme_style)
     
     def set_light_theme(self):
         """设置浅色主题"""
+        theme_style = self.theme_manager.set_light_theme()
         self.is_dark_theme = False
-        self.setStyleSheet("""
-            /* 主窗口样式 */
-            #mainFrame {
-                background-color: white;
-                border: 1px solid #e0e0e0;
-                border-radius: 15px;
-            }
-            
-            #titleBar {
-                background-color: white;
-                border-bottom: 1px solid #e0e0e0;
-                border-top-left-radius: 15px;
-                border-top-right-radius: 15px;
-            }
-            
-            #navPanel {
-                background-color: white;
-                border-right: 1px solid #e0e0e0;
-                border-bottom-left-radius: 15px;
-            }
-            
-            #contentPanel {
-                background-color: white;
-                border-bottom-right-radius: 15px;
-            }
-            
-            #themeButton {
-                background-color: white;
-                border: 1px solid #e0e0e0;
-                border-radius: 15px;
-                padding: 15px;
-                color: #333333;
-            }
-            
-            #themeButton:hover {
-                background-color: #f5f5f5;
-            }
-            
-            
-            /* 分割器样式 */
-            QSplitter::handle {
-                background-color: #e0e0e0;
-            }
-            
-            QSplitter::handle:horizontal {
-                width: 1px;
-            }
-            
-            QSplitter::handle:vertical {
-                height: 1px;
-            }
-            
-            /* 导航列表项样式 */
-            QListWidget#navList {
-                background-color: white;
-                border: none;
-                outline: none;
-                border-radius: 10px;
-            }
-            
-            QListWidget#navList::item {
-                background-color: white;
-                border: none;
-                padding: 8px 16px;
-                margin: 2px 0;
-                border-radius: 8px;
-                color: #333333;
-            }
-            
-            QListWidget#navList::item:selected {
-                background-color: #e0e0e0;
-                color: #333333;
-            }
-            
-            QListWidget#navList::item:hover {
-                background-color: #f5f5f5;
-            }
-            
-            /* 首页视图样式 */
-            #homeView {
-                background-color: white;
-                border-radius: 10px;
-            }
-            
-            #scrollWidget {
-                background-color: white;
-                border-radius: 10px;
-            }
-            
-            /* 设置视图样式 */
-            #settingView {
-                background-color: white;
-                border-radius: 10px;
-            }
-            
-            QGroupBox {
-                background-color: white;
-                border: 1px solid #e0e0e0;
-                border-radius: 10px;
-                margin-top: 10px;
-                padding-top: 10px;
-                color: #333333;
-            }
-            
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px 0 5px;
-                color: #333333;
-            }
-            
-            QLineEdit {
-                background-color: white;
-                border: 1px solid #e0e0e0;
-                border-radius: 5px;
-                padding: 5px;
-                color: #333333;
-            }
-            
-            QPushButton {
-                background-color: white;
-                border: 1px solid #e0e0e0;
-                border-radius: 5px;
-                padding: 5px 10px;
-                color: #333333;
-            }
-            
-            QPushButton:hover {
-                background-color: #f5f5f5;
-            }
-            
-            QToolButton {
-                background-color: white;
-                border: 1px solid #e0e0e0;
-                border-radius: 5px;
-                padding: 2px;
-                color: #333333;
-            }
-            
-            QToolButton:hover {
-                background-color: #f5f5f5;
-            }
-            
-            QLabel {
-                background-color: transparent;
-                color: #333333;
-            }
-        """)
+        self.apply_stylesheet()
     
     def set_dark_theme(self):
         """设置深色主题"""
+        theme_style = self.theme_manager.set_dark_theme()
         self.is_dark_theme = True
-        self.setStyleSheet("""
-            /* 主窗口样式 */
-            #mainFrame {
-                background-color: #2b2b2b;
-                border: 1px solid #404040;
-                border-radius: 15px;
-            }
-            
-            #titleBar {
-                background-color: #2b2b2b;
-                border-bottom: 1px solid #404040;
-                border-top-left-radius: 15px;
-                border-top-right-radius: 15px;
-            }
-            
-            #navPanel {
-                background-color: #2b2b2b;
-                border-right: 1px solid #404040;
-                border-bottom-left-radius: 15px;
-            }
-            
-            #contentPanel {
-                background-color: #2b2b2b;
-                border-bottom-right-radius: 15px;
-            }
-            
-            #themeButton {
-                background-color: #2b2b2b;
-                border: 1px solid #404040;
-                border-radius: 15px;
-                padding: 15px;
-                color: #ffffff;
-            }
-            
-            #themeButton:hover {
-                background-color: #404040;
-            }
-            
-            /* 分割器样式 */
-            QSplitter::handle {
-                background-color: #404040;
-            }
-            
-            QSplitter::handle:horizontal {
-                width: 1px;
-            }
-            
-            QSplitter::handle:vertical {
-                height: 1px;
-            }
-            /* 导航列表项样式 */
-            QListWidget#navList {
-                background-color: #2b2b2b;
-                border: none;
-                outline: none;
-                border-radius: 10px;
-            }
-            
-            QListWidget#navList::item {
-                background-color: #2b2b2b;
-                border: none;
-                padding: 8px 16px;
-                margin: 2px 0;
-                border-radius: 8px;
-                color: #ffffff;
-            }
-            
-            QListWidget#navList::item:selected {
-                background-color: #404040;
-                color: #ffffff;
-            }
-            
-            QListWidget#navList::item:hover {
-                background-color: #404040;
-            }
-            
-            /* 首页视图样式 */
-            #homeView {
-                background-color: #2b2b2b;
-                border-radius: 10px;
-            }
-            
-            #scrollWidget {
-                background-color: #2b2b2b;
-                border-radius: 10px;
-            }
-            
-            /* 设置视图样式 */
-            #settingView {
-                background-color: #2b2b2b;
-                border-radius: 10px;
-            }
-            
-            QGroupBox {
-                background-color: #2b2b2b;
-                border: 1px solid #404040;
-                border-radius: 10px;
-                margin-top: 10px;
-                padding-top: 10px;
-                color: #ffffff;
-            }
-            
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px 0 5px;
-                color: #ffffff;
-            }
-            
-            QLineEdit {
-                background-color: #2b2b2b;
-                border: 1px solid #404040;
-                border-radius: 5px;
-                padding: 5px;
-                color: #ffffff;
-            }
-            
-            QPushButton {
-                background-color: #2b2b2b;
-                border: 1px solid #404040;
-                border-radius: 5px;
-                padding: 5px 10px;
-                color: #ffffff;
-            }
-            
-            QPushButton:hover {
-                background-color: #404040;
-            }
-            
-            QToolButton {
-                background-color: #2b2b2b;
-                border: 1px solid #404040;
-                border-radius: 5px;
-                padding: 2px;
-                color: #ffffff;
-            }
-            
-            QToolButton:hover {
-                background-color: #404040;
-            }
-            
-            QLabel {
-                background-color: transparent;
-                color: #ffffff;
-            }
-        """)
+        self.apply_stylesheet()
