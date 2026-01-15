@@ -268,7 +268,7 @@ class TagScrollArea(QScrollArea):
         super().__init__(parent)
         self.setMouseTracking(True)
         
-    def wheelEvent(self, event: QWheelEvent):
+    def wheelEvent(self, event: QWheelEvent): # type: ignore
         # 支持鼠标滚轮横向滚动
         if event.angleDelta().y() != 0:
             # 将垂直滚轮转换为水平滚动
@@ -289,7 +289,7 @@ class TodoPanel(QWidget):
         self.tag_refresh_in_progress = False  # 标签刷新进行中标志
         
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 10, 0, 0)
+        layout.setContentsMargins(0, 10, 0, 0) # 设置外边距
         layout.setSpacing(0)
         
         # 标题
@@ -317,8 +317,7 @@ class TodoPanel(QWidget):
             QScrollArea {{
                 border: none;
                 background-color: {get_qss_color("todo_panel_tagscrollarea_background", [50, 50, 50, 200])};
-                padding-left: 5px;
-                padding-right: 5px;
+                
             }}
             QScrollBar:horizontal {{
                 height: 0px;
@@ -336,7 +335,7 @@ class TodoPanel(QWidget):
         self.tag_container = QWidget()
         self.tag_container.setStyleSheet("background-color: transparent;")
         self.tag_layout = QHBoxLayout(self.tag_container)
-        self.tag_layout.setContentsMargins(5, 0, 5, 0)
+        self.tag_layout.setContentsMargins(12, 0, 12, 0)
         self.tag_layout.setSpacing(5)
         self.tag_layout.addStretch()
         
@@ -548,14 +547,7 @@ class TodoPanel(QWidget):
         tag_button.setFont(font)
         
         # 使用预定义样式
-        tag_button.setStyleSheet(self._get_tag_button_style())
-        tag_button.clicked.connect(lambda checked, t=tag: self.toggle_tag_filter(t))
-        
-        return tag_button
-    
-    def _get_tag_button_style(self):
-        """获取标签按钮样式字符串"""
-        return f"""
+        tag_button.setStyleSheet(f"""
             QToolButton {{
                 background-color: {get_qss_color("todo_panel_tagbutton_background", "#666")};
                 color: {get_qss_color("todo_panel_tagbutton_foreground", "#ccc")};
@@ -575,10 +567,13 @@ class TodoPanel(QWidget):
             QToolButton:checked:hover {{
                 background-color: {get_qss_color("todo_panel_tagbutton_checked_hover_background", "#5aa0f0")};
             }}
-        """
+        """)
+        tag_button.clicked.connect(lambda checked, t=tag: self.toggle_tag_filter(t))
+        
+        return tag_button
+    
             
     def toggle_tag_filter(self, tag):
-        """切换标签筛选状态"""
         if tag in self.selected_tags:
             self.selected_tags.remove(tag)
         else:
@@ -587,7 +582,6 @@ class TodoPanel(QWidget):
         self.filter_todos_by_tags()
         
     def filter_todos_by_tags(self):
-        """根据选中的标签过滤待办事项，优化性能"""
         # 如果没有选中的标签，显示所有事项
         if not self.selected_tags:
             for i in range(self.todo_layout.count() - 1):  # 排除最后的Stretch
@@ -643,7 +637,6 @@ class TodoPanel(QWidget):
             json.dump(todos, f, ensure_ascii=False, indent=2)
             
     def update_todo_list(self):
-        """更新待办事项列表，优化性能"""
         # 移除已完成或空的项目
         to_remove = []
         items_changed = False
@@ -685,7 +678,6 @@ class TodoPanel(QWidget):
             self.save_todos()
             
     def on_checkbox_clicked(self, item):
-        """当复选框被点击时，如果被标记为完成，则在失去焦点后销毁"""
         if item.is_completed():
             # 连接失去焦点事件
             item.text_field.editingFinished.connect(lambda: self.remove_completed_item(item))
@@ -693,7 +685,6 @@ class TodoPanel(QWidget):
         self.refresh_tags()
             
     def remove_completed_item(self, item):
-        """移除已完成的项目"""
         if item.is_completed():
             self.todo_layout.removeWidget(item)
             if item in self.todo_items:

@@ -48,13 +48,13 @@ def get_font() -> str:
 
 
 # 获取颜色配置
-def get_color(key: str, default: str) -> str|list:
+def get_color(key: str, default: str|list[int]) -> str|list[int]:
     _load_properties()
     colors = _properties.get("colors", {})
     return colors.get(key, default)
 
 # 将颜色配置转换为QSS格式的rgb或rgba字符串
-def get_qss_color(key: str, default: list) -> str:
+def get_qss_color(key: str, default: str|list[int]) -> str:
     color_value = get_color(key, default)
     
     if isinstance(color_value, str):
