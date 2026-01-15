@@ -267,6 +267,28 @@ class TagScrollArea(QScrollArea):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setMouseTracking(True)
+        self.setMaximumHeight(30)
+        self.setMinimumHeight(30)
+        self.setWidgetResizable(True)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        # 启用鼠标跟踪以支持拖拽
+        self.setMouseTracking(True)
+        self.setStyleSheet(f"""
+            QScrollArea {{
+                border: none;
+                background-color: {get_qss_color("todo_panel_tagscrollarea_background", [50, 50, 50, 200])};
+                
+            }}
+            QScrollBar:horizontal {{
+                height: 0px;
+                background-color: transparent;
+            }}
+            QScrollBar::handle:horizontal {{
+                background-color: transparent;
+                border-radius: 4px;
+            }}
+        """)
         
     def wheelEvent(self, event: QWheelEvent): # type: ignore
         # 支持鼠标滚轮横向滚动
@@ -310,26 +332,6 @@ class TodoPanel(QWidget):
         
         # 标签横向滚动区域
         self.tag_scroll_area = TagScrollArea()
-        self.tag_scroll_area.setWidgetResizable(True)
-        self.tag_scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        self.tag_scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.tag_scroll_area.setStyleSheet(f"""
-            QScrollArea {{
-                border: none;
-                background-color: {get_qss_color("todo_panel_tagscrollarea_background", [50, 50, 50, 200])};
-                
-            }}
-            QScrollBar:horizontal {{
-                height: 0px;
-                background-color: transparent;
-            }}
-            QScrollBar::handle:horizontal {{
-                background-color: transparent;
-                border-radius: 4px;
-            }}
-        """)
-        # 启用鼠标跟踪以支持拖拽
-        self.tag_scroll_area.setMouseTracking(True)
         
         # 标签容器
         self.tag_container = QWidget()
@@ -488,6 +490,12 @@ class TodoPanel(QWidget):
             widget = self.tag_layout.itemAt(i).widget()
             if widget:
                 widget.deleteLater()
+        
+        self.all_tags = set()
+        if len(self.all_tags) == 0:
+            self.tag_scroll_area.setMaximumHeight(0)
+            self.tag_scroll_area.setMinimumHeight(0)
+            self.tag_scroll_area.setVisible(False)
     
     def on_tags_refreshed(self, all_tags):
         """标签刷新完成后的处理，优化按钮重用"""
@@ -532,6 +540,16 @@ class TodoPanel(QWidget):
                 # 创建新按钮
                 button = self._create_tag_button(tag)
                 self.tag_layout.insertWidget(i, button)
+                
+        if len(self.all_tags) > 0:
+            self.tag_scroll_area.setMaximumHeight(30)
+            self.tag_scroll_area.setMinimumHeight(30)
+            self.tag_scroll_area.setVisible(True)
+        else:
+            self.tag_scroll_area.setMaximumHeight(0)
+            self.tag_scroll_area.setMinimumHeight(0)
+            self.tag_scroll_area.setVisible(False)
+    
     
     def _create_tag_button(self, tag):
         """创建标签按钮，提取公共逻辑"""
