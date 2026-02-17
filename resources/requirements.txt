@@ -2,3 +2,5 @@ pip install jieba
 pip install pyside6
 pip install wmi
 pip install pywin32
+pip install pandas
+pip install python-docx

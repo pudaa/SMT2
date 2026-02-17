@@ -6,6 +6,7 @@ from PySide6.QtCore import Qt, QSize, Signal, QPoint, QPropertyAnimation, QEasin
 from PySide6.QtGui import QIcon, QPalette, QColor, QPainter, QPen
 from .home_view import HomeView
 from .setting_view import SettingView
+from .etoword_view import ExcelToWordView
 from src.views.components.switch import Switch
 from src.utils.theme_manager import ThemeManager
 
@@ -100,6 +101,7 @@ class ToolBoxWindow(QWidget):
         # 创建视图
         self.home_view = HomeView()
         self.setting_view = SettingView()
+        self.excel_to_word_view = ExcelToWordView()
         
         # 设置应用按钮的回调
         self.setting_view.changes_made.connect(self.show_apply_button)
@@ -107,6 +109,7 @@ class ToolBoxWindow(QWidget):
         # 添加到堆叠窗口
         self.stacked_widget.addWidget(self.home_view)
         self.stacked_widget.addWidget(self.setting_view)
+        self.stacked_widget.addWidget(self.excel_to_word_view)
         
         # 设置初始页面
         self.current_view = self.home_view
@@ -178,6 +181,7 @@ class ToolBoxWindow(QWidget):
         nav_items = [
             {"name": "首页", "icon": None},
             {"name": "设置", "icon": None},
+            {"name": "Excel转Word", "icon": None},
         ]
         
         for item in nav_items:
@@ -217,6 +221,8 @@ class ToolBoxWindow(QWidget):
             self.current_view = self.home_view
         elif index == 1:
             self.current_view = self.setting_view
+        elif index == 2:
+            self.current_view = self.excel_to_word_view
 
     def show_apply_button(self):
         """显示或隐藏应用按钮，根据配置是否被修改"""

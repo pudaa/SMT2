@@ -39,6 +39,110 @@
     background-color: #404040;
 }
 
+/* Excel转Word视图样式 */
+ExcelToWordView {
+    background-color: #2b2b2b;
+    font-family: "Microsoft YaHei", Arial, sans-serif;
+    font-size: 12px;
+}
+
+ExcelToWordView QListWidget {
+    border: 1px solid #555;
+    border-radius: 4px;
+    padding: 2px;
+    background-color: #2b2b2b;
+}
+
+ExcelToWordView QListWidget::item {
+    padding: 4px;
+    border-bottom: 1px solid #444;
+    color: #ffffff;
+}
+
+ExcelToWordView QListWidget::item:hover {
+    background-color: #3a3a3a;
+}
+
+ExcelToWordView QLineEdit, 
+ExcelToWordView QTextEdit {
+    border: 1px solid #555;
+    border-radius: 4px;
+    padding: 5px;
+    background-color: #2b2b2b;
+    color: #ffffff;
+}
+
+ExcelToWordView QLineEdit:focus, 
+ExcelToWordView QTextEdit:focus {
+    border: 1px solid #0078d4;
+}
+
+ExcelToWordView QComboBox {
+    border: 1px solid #555;
+    border-radius: 4px;
+    padding: 4px 8px;
+    background-color: #2b2b2b;
+    color: #ffffff;
+    min-height: 20px;
+}
+
+ExcelToWordView QComboBox::drop-down {
+    border: none;
+}
+
+ExcelToWordView QPushButton {
+    background-color: #0078d4;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 12px;
+    font-weight: bold;
+}
+
+ExcelToWordView QPushButton:hover {
+    background-color: #106ebe;
+}
+
+ExcelToWordView QPushButton:pressed {
+    background-color: #005a9e;
+}
+
+ExcelToWordView QScrollArea {
+    border: 1px solid #444;
+    border-radius: 4px;
+    background-color: #2b2b2b;
+}
+
+ExcelToWordView QScrollBar:vertical {
+    border: none;
+    background-color: #3a3a3a;
+    width: 12px;
+    margin: 0px;
+}
+
+ExcelToWordView QScrollBar::handle:vertical {
+    background-color: #555;
+    border-radius: 6px;
+    min-height: 20px;
+}
+
+ExcelToWordView QScrollBar::handle:vertical:hover {
+    background-color: #666;
+}
+
+ExcelToWordView QLabel {
+    color: #ffffff;
+}
+
+#dropAreaLabel {
+    color: #aaa;
+    font-style: italic;
+    background-color: #333;
+    border: 2px dashed #555;
+    border-radius: 6px;
+    padding: 20px;
+}
+
 /* 分割器样式 */
 QSplitter::handle {
     background-color: #404040;
