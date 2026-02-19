@@ -63,6 +63,15 @@ ExcelToWordView QListWidget::item:hover {
     background-color: #3a3a3a;
 }
 
+
+ExcelToWordView QListWidget::item:selected {
+    color: white;                 
+}
+
+ExcelToWordView QListWidget::item:selected:hover {
+    color: white;      
+}
+
 ExcelToWordView QLineEdit, 
 ExcelToWordView QTextEdit {
     border: 1px solid #555;
@@ -141,6 +150,75 @@ ExcelToWordView QLabel {
     border: 2px dashed #555;
     border-radius: 6px;
     padding: 20px;
+}
+
+/* 预览区样式与列容器（合并重复定义） */
+#previewWidget {
+    background-color: #31363a;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.02);
+    padding: 6px;
+}
+
+#columnWidget QLabel#columnTitle {
+    font-weight: bold;
+    background-color: #3a3f44;
+    padding: 4px;
+    border-radius: 3px;
+}
+
+#columnItemsContainer {
+    background-color: transparent;
+}
+
+/* 预览项标签 */
+#previewItemLabel {
+    background-color: #3a3f44;
+    color: #ffffff;
+    padding: 3px;
+    border-radius: 3px;
+}
+
+/* 复合内容 */
+#compositeContentLabel {
+    background-color: #34393d;
+    color: #ffffff;
+    padding: 5px;
+    border-radius: 4px;
+    border: 1px solid #444c52;
+}
+
+/* 卡片间距和间距 - 深色（保守样式以避免 QSS 解析问题） */
+#columnWidget {
+    padding: 8px;
+    border: 1px solid #40484f;
+    border-radius: 8px;
+    background-color: #282c2f;
+}
+
+#columnWidget:hover {
+    border: 1px solid #5a6b78;
+    background-color: #272b2e;
+}
+
+/* 列内项 hover 和间距（使用通配符子选择器） */
+#columnItemsContainer * {
+    margin-right: 6px;
+}
+
+#columnItemsContainer *:hover, #previewItemLabel:hover {
+    background-color: #42484c;
+}
+
+
+#columnWidget QPushButton { 
+    background: #2b2b2b; 
+    border: none; 
+    color: #cfcfcf;
+}
+
+#columnWidget QPushButton:hover {
+    background-color: #5a6b78;
 }
 
 /* 分割器样式 */
