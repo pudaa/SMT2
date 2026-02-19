@@ -3,10 +3,12 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                                QSplitter, QComboBox, QListWidget, QLineEdit,
                                QScrollArea, QPushButton, QApplication,
                                QMessageBox)
-from PySide6.QtCore import Qt, QMimeData, QByteArray, Signal
+from PySide6.QtCore import Qt, QMimeData, QByteArray, Signal, QObject, QThread, QTimer
 from PySide6.QtGui import QDragEnterEvent, QDropEvent, QDragMoveEvent, QDrag
+from PySide6.QtWidgets import QProgressDialog
 import pandas as pd
 from docx import Document
+from src.utils.excel_to_word_handler import ExcelToWordHandler
 from typing import Optional
 from collections import OrderedDict
 
@@ -119,7 +121,7 @@ class PreviewItemWidget(QWidget):
         self.label.setText(self.item["value"])
     
     def on_delete_clicked(self):
-        """删除按钮点击处理"""
+        """发送删除信号给父视图，由父视图负责从数据模型中删除并刷新预览"""
         self.item_deleted.emit(self.index)
     
     def mousePressEvent(self, event):
@@ -283,17 +285,6 @@ class CompositePreviewItemWidget(QWidget):
         self.style_combo.setFixedWidth(100)
         layout.addWidget(self.style_combo)
         
-        # 添加字段按钮
-        # self.add_field_btn = QPushButton("+")
-        # self.add_field_btn.setFixedSize(25, 25)
-        # self.add_field_btn.clicked.connect(self.add_field_to_composite)
-        # layout.addWidget(self.add_field_btn)
-        
-        # 删除按钮
-        self.delete_btn = QPushButton("✕")
-        self.delete_btn.setFixedSize(25, 25)
-        self.delete_btn.clicked.connect(self.delete_item)
-        layout.addWidget(self.delete_btn)
         
         # 拖拽支持
         self.setMouseTracking(True)
@@ -311,7 +302,7 @@ class CompositePreviewItemWidget(QWidget):
             if value:
                 display_parts.append(f"{value}")
             else:
-                display_parts.append("(空)")
+                display_parts.append("")
         
         display_text = " ".join(display_parts)
         self.content_label.setText(display_text)
@@ -596,7 +587,7 @@ class ExcelToWordView(QWidget):
                 if title in self.excel_data.columns and len(self.excel_data) > 0:
                     value = str(self.excel_data.iloc[0][title])
                 else:
-                    value = "无数据"
+                    value = ""
                 item = {"title": title, "value": value, "style": "默认"}
                 # 每个选中列作为一个独立列，首项为该列首值
                 self.preview_columns[title] = [item]
@@ -677,7 +668,7 @@ class ExcelToWordView(QWidget):
         # 获取字段示例值
         if title in self.excel_data.columns:
             try:
-                value = str(self.excel_data.iloc[0][title]) if len(self.excel_data) > 0 else "无数据"
+                value = str(self.excel_data.iloc[0][title]) if len(self.excel_data) > 0 else ""
             except Exception:
                 value = "示例值"
         else:
@@ -698,7 +689,7 @@ class ExcelToWordView(QWidget):
 
         if title in self.excel_data.columns:
             try:
-                value = str(self.excel_data.iloc[0][title]) if len(self.excel_data) > 0 else "无数据"
+                value = str(self.excel_data.iloc[0][title]) if len(self.excel_data) > 0 else ""
             except Exception:
                 value = "示例值"
         else:
@@ -783,6 +774,10 @@ class ExcelToWordView(QWidget):
 
     def refresh_preview_area(self):
         """刷新预览区域"""
+        # 保存当前滚动位置
+        scrollbar = self.preview_area.verticalScrollBar()
+        saved_scroll_pos = scrollbar.value()
+    
         # 清空预览区域 - 修复布局清理逻辑
         while self.preview_layout.count():
             item = self.preview_layout.takeAt(0)
@@ -811,6 +806,9 @@ class ExcelToWordView(QWidget):
         else:
             for i, item in enumerate(self.preview_items):
                 self.add_preview_item_widget(i, item)
+                
+        
+        QTimer.singleShot(10, lambda: scrollbar.setValue(saved_scroll_pos))
     
     def refresh_composite_preview_area(self):
         """刷新复合预览区域"""
@@ -883,11 +881,11 @@ class ExcelToWordView(QWidget):
                 for item in items:
                     field = item.get("title")
                     if self.excel_data is None or field not in self.excel_data.columns:
-                        value = "无数据"
+                        value = ""
                     else:
                         value = str(self.excel_data.iloc[row_index][field])
                         if not value or value.lower() == "nan":
-                            value = "无数据"
+                            value = ""
                     items_with_values.append({"title": field, "value": value, "style": item.get("style", "默认")})
 
                 # 使用复合格式将列内所有字段横向合并显示
@@ -926,8 +924,9 @@ class ExcelToWordView(QWidget):
             
             # 获取行数据
             row_data = self.excel_data.iloc[row_index]
-            row_values = [str(val) if not pd.isna(val) else "无数据" for val in row_data]
-            
+            row_values = [str(val) if not pd.isna(val) else "" for val in row_data]
+            if "".join(row_values) == "": # 跳过无数据行
+                continue
             # 为当前行添加数据
             for j, (column_name, value) in enumerate(zip(self.excel_data.columns, row_values)):
                 # 应用样式（使用模板中对应的样式）
@@ -959,7 +958,7 @@ class ExcelToWordView(QWidget):
             if value:
                 display_parts.append(f"{value}")
             else:
-                display_parts.append("(空)")
+                display_parts.append("")
         
         display_text = " ".join(display_parts)
         

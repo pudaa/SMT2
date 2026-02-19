@@ -100,16 +100,16 @@ class ToolBoxWindow(QWidget):
         
         # 创建视图
         self.home_view = HomeView()
-        self.setting_view = SettingView()
         self.excel_to_word_view = ExcelToWordView()
+        self.setting_view = SettingView()
         
         # 设置应用按钮的回调
         self.setting_view.changes_made.connect(self.show_apply_button)
         
         # 添加到堆叠窗口
         self.stacked_widget.addWidget(self.home_view)
-        self.stacked_widget.addWidget(self.setting_view)
         self.stacked_widget.addWidget(self.excel_to_word_view)
+        self.stacked_widget.addWidget(self.setting_view)
         
         # 设置初始页面
         self.current_view = self.home_view
@@ -180,8 +180,8 @@ class ToolBoxWindow(QWidget):
         # 添加导航项
         nav_items = [
             {"name": "首页", "icon": None},
-            {"name": "设置", "icon": None},
             {"name": "Excel转Word", "icon": None},
+            {"name": "设置", "icon": None},
         ]
         
         for item in nav_items:
