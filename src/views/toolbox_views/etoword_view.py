@@ -8,8 +8,13 @@ from PySide6.QtGui import QDragEnterEvent, QDropEvent, QDragMoveEvent, QDrag
 from PySide6.QtWidgets import QProgressDialog
 import pandas as pd
 from docx import Document
+from docx.shared import RGBColor, Pt
+from docx.oxml.ns import qn
+from docx.enum.style import WD_STYLE_TYPE
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 from typing import Optional
 from collections import OrderedDict
+from copy import deepcopy
 
 class DraggableListWidget(QListWidget):
     """可拖拽的列表组件"""
@@ -24,14 +29,17 @@ class DraggableListWidget(QListWidget):
         item = self.currentItem()
         if item:
             mimeData = QMimeData()
-            # 获取当前选择的模式（如果存在mode_combo则使用它）
-            mode = "列模式"
-            parent = self.parent()
-            if parent and hasattr(parent, 'mode_combo') and parent.mode_combo is not None:
-                try:
-                    mode = parent.mode_combo.currentText()
-                except Exception:
-                    mode = "列模式"
+            # 获取该列表自身的项目类型（由 update_title_list 设置），优先使用列表自身的 item_mode
+            mode = getattr(self, 'item_mode', None)
+            if mode is None:
+                # 回退到父视图的模式下拉
+                mode = "列模式"
+                parent = self.parent()
+                if parent and hasattr(parent, 'mode_combo') and parent.mode_combo is not None:
+                    try:
+                        mode = parent.mode_combo.currentText()
+                    except Exception:
+                        mode = "列模式"
             # 将数据序列化为字节流
             data_str = f"{item.text()}|{mode}"
             mimeData.setData("application/x-etoword-item", QByteArray(data_str.encode()))
@@ -99,7 +107,17 @@ class PreviewItemWidget(QWidget):
         
         # 样式选择
         self.style_combo = QComboBox()
-        self.style_combo.addItems(["默认", "二级标题", "无序列表", "有序列表"])
+        self.style_combo.addItems([
+            "正文",
+            "一级标题",
+            "二级标题",
+            "三级标题",
+            "加粗",
+            "斜体",
+            "引用",
+            "无序列表",
+            "有序列表",
+        ])
         self.style_combo.setCurrentText(self.item["style"])
         self.style_combo.currentTextChanged.connect(self.on_style_changed)
         self.style_combo.setFixedWidth(100)
@@ -272,17 +290,7 @@ class CompositePreviewItemWidget(QWidget):
         self.update_display_text()
         self.content_label.setWordWrap(True)
         self.content_label.setObjectName("compositeContentLabel")
-        layout.addWidget(self.content_label)
-        
-        # 样式选择
-        self.style_combo = QComboBox()
-        self.style_combo.addItems(["默认", "二级标题", "无序列表", "有序列表"])
-        # 使用第一个项目的样式作为整体样式
-        if self.items:
-            self.style_combo.setCurrentText(self.items[0]["style"])
-        self.style_combo.currentTextChanged.connect(self.on_style_changed)
-        self.style_combo.setFixedWidth(100)
-        layout.addWidget(self.style_combo)
+        # layout.addWidget(self.content_label)
         
         
         # 拖拽支持
@@ -306,22 +314,7 @@ class CompositePreviewItemWidget(QWidget):
         display_text = " ".join(display_parts)
         self.content_label.setText(display_text)
     
-    def on_style_changed(self, style):
-        # 更新所有子项目样式
-        for item in self.items:
-            item["style"] = style
-        self.update_display_text()
     
-    def add_field_to_composite(self):
-        """向组合项添加新字段"""
-        # 这里可以通过弹窗或其他方式让用户选择要添加的字段
-        # 暂时留空，后续实现具体的添加逻辑
-        pass
-    
-    def delete_item(self):
-        parent = self.parent()
-        if parent and hasattr(parent, 'remove_composite_preview_item'):
-            parent.remove_composite_preview_item(self.index)
     
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -377,7 +370,7 @@ class CompositePreviewItemWidget(QWidget):
                     value = str(excel_data.iloc[0][title]) if len(excel_data) > 0 else ""
                 elif mode == "行模式":
                     try:
-                        if title.startswith("Row "):
+                        if title.startswith("行 "):
                             row_index = int(title.split()[1])
                         else:
                             row_index = int(title)
@@ -391,7 +384,7 @@ class CompositePreviewItemWidget(QWidget):
                     value = ""
                 
                 # 添加到组合
-                new_item = {"title": title, "value": value, "style": "默认"}
+                new_item = {"title": title, "value": value, "style": "正文"}
                 self.items.append(new_item)
                 self.update_display_text()
     
@@ -408,7 +401,7 @@ class CompositePreviewItemWidget(QWidget):
                 for title in titles_to_merge:
                     if title in excel_data.columns:
                         value = str(excel_data.iloc[0][title]) if len(excel_data) > 0 else ""
-                        new_item = {"title": title, "value": value, "style": "默认"}
+                        new_item = {"title": title, "value": value, "style": "正文"}
                         self.items.append(new_item)
                 
                 self.update_display_text()
@@ -419,6 +412,7 @@ class ExcelToWordView(QWidget):
         self.excel_data: Optional[pd.DataFrame] = None
         self.preview_items = []  # 单个字段的预览项
         self.preview_columns = OrderedDict()  # 列模式：每列包含多个横向字段
+        self.selected_rows = []  # 行模式：被选中的行索引列表（用于遍历）
         self.composite_preview_items = []  # 复合字段的预览项
         self.setAcceptDrops(True)  # 启用拖拽功能
         self.init_ui()
@@ -557,20 +551,21 @@ class ExcelToWordView(QWidget):
                     QMessageBox.warning(self, "警告", "当前Excel文件没有列标题！")
                     return
                 self.title_list.addItems(columns)
+                # 标记列表当前展示的是列项
+                self.title_list.item_mode = "列模式"
             else:
-                # 行模式：显示 Row 0, Row 1, ... 方便用户把整行拖入模板
-                rows = [f"Row {i}" for i in range(len(self.excel_data))]
+                rows = [f"行 {i}" for i in range(len(self.excel_data))]
                 if not rows:
                     QMessageBox.warning(self, "警告", "当前Excel没有数据行！")
                     return
                 self.title_list.addItems(rows)
+                # 标记列表当前展示的是行项
+                self.title_list.item_mode = "行模式"
         else:
             QMessageBox.warning(self, "警告", "请先加载Excel文件！")
 
     def update_preview(self):
-        # 清空预览区域
         self.preview_items = []
-        self.preview_columns = OrderedDict()
         self.refresh_preview_area()
         
         if self.excel_data is None:
@@ -581,32 +576,35 @@ class ExcelToWordView(QWidget):
             mode = self.mode_combo.currentText()
         selected_titles = [self.title_list.item(i).text() for i in range(self.title_list.count())]
         
-        for title in selected_titles:
-            if mode == "列模式":
+        # 处理选中项：在列模式下，选中项是列名，用以构建模板；
+        # 在行模式下，选中项是行索引，用以构建 selected_rows（遍历时使用）
+        if mode == "列模式":
+            # 重建模板
+            self.preview_columns = OrderedDict()
+            for title in selected_titles:
                 if title in self.excel_data.columns and len(self.excel_data) > 0:
                     value = str(self.excel_data.iloc[0][title])
                 else:
                     value = ""
-                item = {"title": title, "value": value, "style": "默认"}
-                # 每个选中列作为一个独立列，首项为该列首值
+                item = {"title": title, "value": value, "style": "正文"}
                 self.preview_columns[title] = [item]
-            else:  # 行模式
+            # 在切换到列模式时，清空 selected_rows（行选择）
+            self.selected_rows = []
+        else:
+            # 更新所选行集合（不改变模板）
+            self.selected_rows = []
+            for title in selected_titles:
                 try:
-                    if title.startswith("Row "):
+                    if title.startswith("行 "):
                         row_index = int(title.split()[1])
                     else:
                         row_index = int(title)
-                    
                     if 0 <= row_index < len(self.excel_data):
-                        value = str(self.excel_data.iloc[row_index].tolist())
-                    else:
-                        value = f"行索引 {row_index} 超出范围"
+                        self.selected_rows.append(row_index)
                 except (ValueError, IndexError):
-                    value = f"无法解析行标题: {title}"
-                item = {"title": title, "value": value, "style": "默认"}
-                self.preview_items.append(item)
+                    continue
         
-        # 刷新显示
+        # 刷新显示（始终以模板 preview_columns 渲染预览区）
         self.refresh_preview_area()
 
     def update_item_style(self, index, style):
@@ -629,26 +627,23 @@ class ExcelToWordView(QWidget):
             self.add_column_with_item(title, mode)
             return
 
-        # 行模式（沿用原有行为：追加到预览项列表）
-        try:
-            if title.startswith("Row "):
-                row_index = int(title.split()[1])
-            else:
-                row_index = int(title)
-
-            if 0 <= row_index < len(self.excel_data):
-                value = str(self.excel_data.iloc[row_index].tolist())
-            else:
-                QMessageBox.warning(self, "警告", f"行索引 {row_index} 超出范围！")
-                return
-        except (ValueError, IndexError):
-            QMessageBox.warning(self, "警告", f"无法解析行标题: {title}")
+        # 行模式：被拖入的行为“选择行”，不改变模板；在 selected_rows 中记录
+        if mode == "行模式":
+            try:
+                if title.startswith("行 "):
+                    row_index = int(title.split()[1])
+                else:
+                    row_index = int(title)
+                if 0 <= row_index < len(self.excel_data):
+                    if row_index not in self.selected_rows:
+                        self.selected_rows.append(row_index)
+                        # 让用户看到已选择的行（刷新预览区会显示摘要）
+                        self.refresh_preview_area()
+                else:
+                    QMessageBox.warning(self, "警告", f"行索引 {row_index} 超出范围！")
+            except (ValueError, IndexError):
+                QMessageBox.warning(self, "警告", f"无法解析行标题: {title}")
             return
-
-        # 添加到预览项目
-        item = {"title": title, "value": value, "style": "默认"}
-        self.preview_items.append(item)
-        self.add_preview_item_widget(len(self.preview_items)-1, item)
 
     def add_preview_item_widget(self, index, item):
         """添加单个预览项小部件"""
@@ -673,7 +668,7 @@ class ExcelToWordView(QWidget):
         else:
             value = "示例值"
 
-        item = {"title": title, "value": value, "style": "默认"}
+        item = {"title": title, "value": value, "style": "正文"}
         # 如果列不存在，则创建并加入项目
         if title not in self.preview_columns:
             self.preview_columns[title] = []
@@ -694,7 +689,7 @@ class ExcelToWordView(QWidget):
         else:
             value = "示例值"
 
-        item = {"title": title, "value": value, "style": "默认"}
+        item = {"title": title, "value": value, "style": "正文"}
         if column_title not in self.preview_columns:
             self.preview_columns[column_title] = []
         self.preview_columns[column_title].append(item)
@@ -730,7 +725,7 @@ class ExcelToWordView(QWidget):
                 return
         else:  # 行模式
             try:
-                if title.startswith("Row "):
+                if title.startswith("行 "):
                     row_index = int(title.split()[1])
                 else:
                     row_index = int(title)
@@ -744,11 +739,10 @@ class ExcelToWordView(QWidget):
                 QMessageBox.warning(self, "警告", f"无法解析行标题: {title}")
                 return
         
-        # 在指定位置插入项目
-        item = {"title": title, "value": value, "style": "默认"}
+        # 在指定位置插入项目（仅对行模板的可视化插入保留兼容）
+        item = {"title": title, "value": value, "style": "正文"}
+        # 在我们的统一模型中，插入到预览项仅在需要时使用；这里保持向后兼容：
         self.preview_items.insert(position, item)
-        
-        # 重新创建所有预览项以更新索引
         self.refresh_preview_area()
     
     def remove_preview_item(self, index):
@@ -793,18 +787,18 @@ class ExcelToWordView(QWidget):
                         if child_item and child_item.widget():
                             child_item.widget().setParent(None)
         
-        # 根据模式重新添加所有项目
+        # 始终以列模板渲染预览区（preview_columns 是统一的模板模型）
+        for col_title, items in self.preview_columns.items():
+            col_widget = CompositePreviewItemWidget.ColumnPreviewWidget(col_title, items, self.preview_widget)
+            self.preview_layout.addWidget(col_widget)
+
+        # 如果处于行模式且用户选择了若干行，显示一个简短的摘要以便用户知道将要遍历哪些行
         mode = "列模式"
         if hasattr(self, 'mode_combo') and self.mode_combo is not None:
             mode = self.mode_combo.currentText()
-        if mode == "列模式":
-            # 每一列显示为 ColumnPreviewWidget（列标题 + 横向字段项）
-            for col_title, items in self.preview_columns.items():
-                col_widget = CompositePreviewItemWidget.ColumnPreviewWidget(col_title, items, self.preview_widget)
-                self.preview_layout.addWidget(col_widget)
-        else:
-            for i, item in enumerate(self.preview_items):
-                self.add_preview_item_widget(i, item)
+        if mode == "行模式" and getattr(self, 'selected_rows', None):
+            # 在模板之后显示所选行摘要
+            rows_text = ",".join(str(r) for r in sorted(self.selected_rows))
                 
         
         QTimer.singleShot(10, lambda: scrollbar.setValue(saved_scroll_pos))
@@ -819,159 +813,266 @@ class ExcelToWordView(QWidget):
         composite_item = CompositePreviewItemWidget(len(self.composite_preview_items), items, self.preview_widget)
         self.composite_preview_items.append(composite_item)
         self.preview_layout.addWidget(composite_item)
+        
+    class DocGenerator(QThread):
+        """在后台线程中生成 Word 文档，使用传入的模板快照和遍历方式，避免直接访问 GUI 对象。"""
+        finished = Signal(bool, str)  # success, path_or_message
+
+        def __init__(self, preview_columns_snapshot, excel_data, selected_rows_snapshot, traversal, title, output_path="output.docx"):
+            super().__init__()
+            self.preview_columns = preview_columns_snapshot
+            self.excel_data = excel_data
+            self.selected_rows = selected_rows_snapshot
+            self.traversal = traversal  # 'col' or 'row'
+            self.title = title
+            self.output_path = output_path
+            
+        
+        def _apply_chinese_style(self, doc):
+            """
+            修改 doc 中常用内置样式的字体为宋体，颜色为黑色。
+            """
+            styles = doc.styles
+
+            # === 1. 基础段落样式：Normal 已存在，我们只修改它 ===
+            normal = styles['Normal']
+            normal.font.name = 'SimSun'
+            normal._element.rPr.rFonts.set(qn('w:eastAsia'), 'SimSun')
+            normal.font.color.rgb = RGBColor(0, 0, 0)
+            normal.font.size = Pt(12)  # 小四
+
+            # === 2. 创建自定义标题样式 ===
+            # 自定义主标题
+            if 'In Title' not in styles:
+                title_style = styles.add_style('In Title', WD_STYLE_TYPE.PARAGRAPH)
+                title_style.base_style = normal  # 继承 Normal
+                title_font = title_style.font
+                title_font.name = 'SimSun'
+                title_style._element.rPr.rFonts.set(qn('w:eastAsia'), 'SimSun')
+                title_font.color.rgb = RGBColor(0, 0, 0)
+                title_font.size = Pt(16)
+                title_font.bold = True
+                title_style.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                title_style.paragraph_format.space_before = Pt(24)
+                title_style.paragraph_format.space_after = Pt(18)
+                title_style.hidden = False
+                title_style.quick_style = True
+                title_style.priority = 1
+                
+
+            # 自定义一级标题
+            if 'In Heading 1' not in styles:
+                h1 = styles.add_style('In Heading 1', WD_STYLE_TYPE.PARAGRAPH)
+                h1.base_style = normal
+                h1.font.name = 'SimSun'
+                h1._element.rPr.rFonts.set(qn('w:eastAsia'), 'SimSun')
+                h1.font.color.rgb = RGBColor(0, 0, 0)
+                h1.font.size = Pt(14)
+                h1.font.bold = True
+                h1.paragraph_format.space_before = Pt(18)
+                h1.paragraph_format.space_after = Pt(12)
+                h1.hidden = False
+                h1.quick_style = True
+                h1.priority = 1
+
+            # 自定义二级标题
+            if 'In Heading 2' not in styles:
+                h2 = styles.add_style('In Heading 2', WD_STYLE_TYPE.PARAGRAPH)
+                h2.base_style = normal
+                h2.font.name = 'SimSun'
+                h2._element.rPr.rFonts.set(qn('w:eastAsia'), 'SimSun')
+                h2.font.color.rgb = RGBColor(0, 0, 0)
+                h2.font.size = Pt(13)
+                h2.font.bold = True
+                h2.paragraph_format.space_before = Pt(12)
+                h2.paragraph_format.space_after = Pt(6)
+                h2.hidden = False
+                h2.quick_style = True
+                h2.priority = 1
+
+            # 自定义三级标题
+            if 'In Heading 3' not in styles:
+                h3 = styles.add_style('In Heading 3', WD_STYLE_TYPE.PARAGRAPH)
+                h3.base_style = normal
+                h3.font.name = 'SimSun'
+                h3._element.rPr.rFonts.set(qn('w:eastAsia'), 'SimSun')
+                h3.font.color.rgb = RGBColor(0, 0, 0)
+                h3.font.size = Pt(12)
+                h3.font.bold = True
+                h3.paragraph_format.space_before = Pt(12)
+                h3.paragraph_format.space_after = Pt(6)
+                h3.hidden = False
+                h3.quick_style = True
+                h3.priority = 1
+
+            # === 3. 修改其他常用样式（列表、引用等）===
+            for style_name in ['Quote', 'List Paragraph', 'List Bullet', 'List Number']:
+                if style_name in styles:
+                    s = styles[style_name]
+                    s.font.name = 'SimSun'
+                    s._element.rPr.rFonts.set(qn('w:eastAsia'), 'SimSun')
+                    s.font.color.rgb = RGBColor(0, 0, 0)
+
+            # 字符样式
+            for style_name in ['Strong', 'Emphasis']:
+                if style_name in styles:
+                    s = styles[style_name]
+                    s.font.name = 'SimSun'
+                    s._element.rPr.rFonts.set(qn('w:eastAsia'), 'SimSun')
+                    s.font.color.rgb = RGBColor(0, 0, 0)
+                    
+            # === 4. 隐藏 latent styles ===
+            latent_styles = doc.styles.latent_styles
+
+            for name in ['Title', 'Heading 1', 'Heading 2', 'Heading 3']:
+                if name in latent_styles:
+                    ls = latent_styles[name]
+                    ls.hidden = True      # 在样式窗格中隐藏
+                    ls.quick_style = False  # 不出现在快速样式栏
+                    
+        
+        def run(self):
+            try:
+                doc = Document()
+                self._apply_chinese_style(doc)
+
+                if self.title:
+                    # heading = doc.add_heading(self.title, level=1)
+                    heading = doc.add_paragraph(self.title, style='In Title')
+                print("开始生成文档...")
+                # 如果没有模板则返回空结果
+                if not self.preview_columns:
+                    doc.save(self.output_path)
+                    self.finished.emit(True, self.output_path)
+                    return
+
+                # 根据遍历方向生成文档：'col' -> 按行遍历所有行；'row' -> 按选中行遍历
+                if self.traversal == 'col':
+                    row_indices = range(len(self.excel_data)) if self.excel_data is not None else []
+                else:
+                    row_indices = self.selected_rows
+
+                first = True
+                for i, row_index in enumerate(row_indices):
+                    if not first:
+                        doc.add_paragraph("")
+                        doc.add_paragraph("-" * 30)
+                        doc.add_paragraph("")
+                    first = False
+
+                    for col_title, items in self.preview_columns.items():
+                        # 构建当前行每个字段的实际值副本
+                        items_with_values = []
+                        for item in items:
+                            field = item.get("title")
+                            if self.excel_data is None or field not in self.excel_data.columns:
+                                value = ""
+                            else:
+                                try:
+                                    value = str(self.excel_data.iloc[row_index][field])
+                                    if not value or value.lower() == "nan":
+                                        value = ""
+                                except Exception:
+                                    value = ""
+                            items_with_values.append({"title": field, "value": value, "style": item.get("style", "正文")})
+
+                        # 使用复合格式将列内所有字段横向合并显示
+                        # 采用第一个子项的样式作为整列样式
+                        style = items_with_values[0].get("style", "正文") if items_with_values else "正文"
+                        # 复用父类的格式化函数：手工实现与 _add_composite_formatted_content 相同逻辑
+                        display_parts = []
+                        for it in items_with_values:
+                            v = it.get("value", "")
+                            display_parts.append(v if v else "")
+                        display_text = " ".join(display_parts)
+
+                        if style == "一级标题":
+                            p = doc.add_paragraph(display_text, style='In Heading 1')
+                        elif style == "二级标题":
+                            p = doc.add_paragraph(display_text, style='In Heading 2')
+                        elif style == "三级标题":
+                            p = doc.add_paragraph(display_text, style='In Heading 3')
+                        elif style == "加粗":
+                            p = doc.add_paragraph()
+                            r = p.add_run(display_text)
+                            r.style = "Strong"
+                        elif style == "斜体":
+                            p = doc.add_paragraph()
+                            r = p.add_run(display_text)
+                            r.style = "Emphasis"
+                        elif style == "引用":
+                            p = doc.add_paragraph(display_text, style='Quote')
+                        elif style == "无序列表":
+                            p = doc.add_paragraph(style='List Bullet')
+                            p.add_run(display_text)
+                        elif style == "有序列表":
+                            p = doc.add_paragraph(style='List Number')
+                            p.add_run(display_text)
+                        else:
+                            doc.add_paragraph(display_text, style='Normal')
+
+                doc.save(self.output_path)
+                self.finished.emit(True, self.output_path)
+            except Exception as e:
+                self.finished.emit(False, str(e))
 
     def generate_word(self):
         """生成Word文档 - 批量处理所有数据行"""
         if self.excel_data is None:
             QMessageBox.warning(self, "警告", "请先加载Excel文件！")
             return
-            
+
+        # 统一使用 preview_columns 作为模板模型；如果没有模板则提示
         if not self.preview_columns:
-            QMessageBox.warning(self, "警告", "请先添加模板项目！")
+            QMessageBox.warning(self, "警告", "请先完成模板！")
             return
-            
+
+        # 禁用生成按钮并显示不可取消的进度对话框（指示正在后台生成）
         try:
-            doc = Document()
-            
-            # 添加一级标题
-            if self.primary_title.text().strip():
-                doc.add_heading(self.primary_title.text().strip(), level=1)
-            
-            # 根据当前模式处理所有数据（列/行）
-            mode = "列模式"
-            if hasattr(self, 'mode_combo') and self.mode_combo is not None:
-                mode = self.mode_combo.currentText()
+            self.generate_btn.setEnabled(False)
+            self.progress_dialog = QProgressDialog("正在生成Word...", "None", 0, 0, self)
+            self.progress_dialog.setWindowModality(Qt.WindowModal)
+            self.progress_dialog.setCancelButton(None)
+            self.progress_dialog.setMinimumDuration(0)
+            self.progress_dialog.show()
 
-            if mode == "列模式":
-                self._generate_from_columns(doc)
-            else:  # 行模式
-                self._generate_from_rows(doc)
-            
-            # 保存文档
+            if not self.preview_columns:
+                QMessageBox.warning(self, "警告", "请先完成模板！")
+                self.progress_dialog.close()
+                self.generate_btn.setEnabled(True)
+                return
+
             output_path = "output.docx"
-            doc.save(output_path)
-            QMessageBox.information(self, "成功", f"Word文档已生成：{output_path}")
-            
+            # 在主线程对模板和选择行进行快照，避免线程访问 GUI 对象
+            preview_columns_snapshot = deepcopy(self.preview_columns)
+            selected_rows_snapshot = list(self.selected_rows)
+            traversal = 'col' if (hasattr(self, 'mode_combo') and self.mode_combo.currentText() == '列模式') else 'row'
+            title_snapshot = self.primary_title.text().strip() if hasattr(self, 'primary_title') else ''
+
+            self._doc_worker = ExcelToWordView.DocGenerator(preview_columns_snapshot, self.excel_data, selected_rows_snapshot, traversal, title_snapshot, output_path)
+            self._doc_worker.finished.connect(self._on_doc_generation_finished)
+            self._doc_worker.start()
         except Exception as e:
-            QMessageBox.critical(self, "错误", f"生成Word文档失败：{str(e)}")
+            QMessageBox.critical(self, "错误", f"启动后台生成失败：{str(e)}")
 
     
 
-    def _generate_from_columns(self, doc):
-        """从列模式生成Word文档"""
-        if self.excel_data is None or len(self.excel_data) == 0:
-            return
-        # 如果没有列配置，直接返回
-        if not self.preview_columns:
-            return
 
-        # 遍历每一行数据
-        for row_index in range(len(self.excel_data)):
-            # 为每行添加分隔线（除了第一行）
-            if row_index > 0:
-                doc.add_paragraph("")
-                doc.add_paragraph("-" * 30)
-                doc.add_paragraph("")
-
-            # 按列顺序输出，每个列可能包含多个字段（横向组合）
-            for col_title, items in self.preview_columns.items():
-                # 构建当前行每个字段的实际值副本
-                items_with_values = []
-                for item in items:
-                    field = item.get("title")
-                    if self.excel_data is None or field not in self.excel_data.columns:
-                        value = ""
-                    else:
-                        value = str(self.excel_data.iloc[row_index][field])
-                        if not value or value.lower() == "nan":
-                            value = ""
-                    items_with_values.append({"title": field, "value": value, "style": item.get("style", "默认")})
-
-                # 使用复合格式将列内所有字段横向合并显示
-                # 采用第一个子项的样式作为整列样式
-                style = items_with_values[0].get("style", "默认") if items_with_values else "默认"
-                self._add_composite_formatted_content(doc, items_with_values, style)
-
-    def _generate_from_rows(self, doc):
-        """从行模式生成Word文档"""
-        if self.excel_data is None:
-            return
-            
-        # 获取选中的行索引
-        selected_rows = []
-        for item in self.preview_items:
-            try:
-                if item["title"].startswith("Row "):
-                    row_index = int(item["title"].split()[1])
-                else:
-                    row_index = int(item["title"])
-                if 0 <= row_index < len(self.excel_data):
-                    selected_rows.append((row_index, item))
-            except (ValueError, IndexError):
-                continue
-        
-        if not selected_rows:
-            return
-            
-        # 遍历选中的每一行
-        for i, (row_index, item) in enumerate(selected_rows):
-            # 为每行添加分隔线（除了第一行）
-            if i > 0:
-                doc.add_paragraph("")
-                doc.add_paragraph("-" * 30)
-                doc.add_paragraph("")
-            
-            # 获取行数据
-            row_data = self.excel_data.iloc[row_index]
-            row_values = [str(val) if not pd.isna(val) else "" for val in row_data]
-            if "".join(row_values) == "": # 跳过无数据行
-                continue
-            # 为当前行添加数据
-            for j, (column_name, value) in enumerate(zip(self.excel_data.columns, row_values)):
-                # 应用样式（使用模板中对应的样式）
-                style = item["style"] if j < len(self.preview_items) else "默认"
-                self._add_formatted_content(doc, column_name, value, style)
-
-    def _add_formatted_content(self, doc, title, value, style):
-        """添加格式化的内容到文档"""
-        display_text = value
-        
-        if style == "二级标题":
-            doc.add_heading(display_text, level=2)
-        elif style == "无序列表":
-            p = doc.add_paragraph(style='List Bullet')
-            p.add_run(display_text)
-        elif style == "有序列表":
-            p = doc.add_paragraph(style='List Number')
-            p.add_run(display_text)
-        else:  # 默认样式
-            doc.add_paragraph(display_text)
-
-    def _add_composite_formatted_content(self, doc, items, style):
-        """添加复合格式化内容到文档"""
-        # 组合显示所有字段
-        display_parts = []
-        for i, item in enumerate(items):
-            value = item.get("value", "")
-            if value:
-                display_parts.append(f"{value}")
-            else:
-                display_parts.append("")
-        
-        display_text = " ".join(display_parts)
-        
-        if style == "二级标题":
-            doc.add_heading(display_text, level=2)
-        elif style == "无序列表":
-            p = doc.add_paragraph(style='List Bullet')
-            p.add_run(display_text)
-        elif style == "有序列表":
-            p = doc.add_paragraph(style='List Number')
-            p.add_run(display_text)
-        else:  # 默认样式
-            doc.add_paragraph(display_text)
-
-    
+    def _on_doc_generation_finished(self, success, path_or_msg):
+        # 在主线程恢复 UI 状态并提示结果
+        try:
+            if hasattr(self, 'progress_dialog') and self.progress_dialog is not None:
+                self.progress_dialog.close()
+        except Exception:
+            pass
+        try:
+            self.generate_btn.setEnabled(True)
+        except Exception:
+            pass
+        if success:
+            QMessageBox.information(self, "成功", f"Word文档已生成：{path_or_msg}")
+        else:
+            QMessageBox.critical(self, "错误", f"生成Word文档失败：{path_or_msg}")
 
     def preview_drag_enter(self, event):
         """预览区域拖拽进入事件"""
