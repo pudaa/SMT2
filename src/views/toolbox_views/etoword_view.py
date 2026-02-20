@@ -8,7 +8,6 @@ from PySide6.QtGui import QDragEnterEvent, QDropEvent, QDragMoveEvent, QDrag
 from PySide6.QtWidgets import QProgressDialog
 import pandas as pd
 from docx import Document
-from src.utils.excel_to_word_handler import ExcelToWordHandler
 from typing import Optional
 from collections import OrderedDict
 
@@ -935,7 +934,6 @@ class ExcelToWordView(QWidget):
 
     def _add_formatted_content(self, doc, title, value, style):
         """添加格式化的内容到文档"""
-        # 只显示值，不显示标题前缀
         display_text = value
         
         if style == "二级标题":
