@@ -364,3 +364,83 @@ Switch:checked {
 Switch:checked::groove {
     background-color: #0078d4;
 }
+
+
+/* 深色主题下的对话框样式 */
+QDialog {
+    background-color: #2d2d2d;
+    color: #ffffff;
+}
+
+QDialog QLabel {
+    color: #ffffff;
+}
+
+QDialog QPushButton {
+    background-color: #0078d4;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 12px;
+}
+
+QDialog QPushButton:hover {
+    background-color: #106ebe;
+}
+
+QDialog QPushButton:pressed {
+    background-color: #005a9e;
+}
+
+QDialog QLineEdit {
+    background-color: #3d3d3d;
+    border: 1px solid #505050;
+    border-radius: 4px;
+    padding: 5px;
+    color: #ffffff;
+}
+
+/* QProgressDialog样式 */
+QProgressDialog {
+    background-color: #2d2d2d;
+    color: #ffffff;
+}
+
+QProgressDialog QLabel {
+    color: #ffffff;
+}
+
+QProgressDialog QProgressBar {
+    border: 1px solid #505050;
+    border-radius: 4px;
+    background-color: #3d3d3d;
+    text-align: center;
+}
+
+QProgressDialog QProgressBar::chunk {
+    background-color: #0078d4;
+    border-radius: 3px;
+}
+
+/* QMessageBox样式 */
+QMessageBox {
+    background-color: #2d2d2d;
+    color: #ffffff;
+}
+
+QMessageBox QLabel {
+    color: #ffffff;
+}
+
+QMessageBox QPushButton {
+    background-color: #0078d4;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 12px;
+    min-width: 80px;
+}
+
+QMessageBox QPushButton:hover {
+    background-color: #106ebe;
+}

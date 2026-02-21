@@ -360,3 +360,74 @@ Switch:checked {
 Switch:checked::groove {
     background-color: #0078d4;
 }
+
+/* QDialog样式 - 解决深色模式下弹窗文本看不清的问题 */
+QDialog {
+    background-color: white;
+    color: #333333;
+}
+
+QDialog QLabel {
+    color: #333333;
+}
+
+QDialog QPushButton {
+    background-color: #0078d4;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 12px;
+}
+
+QDialog QPushButton:hover {
+    background-color: #106ebe;
+}
+
+QDialog QPushButton:pressed {
+    background-color: #005a9e;
+}
+
+/* QProgressDialog样式 */
+QProgressDialog {
+    background-color: white;
+    color: #333333;
+}
+
+QProgressDialog QLabel {
+    color: #333333;
+}
+
+QProgressDialog QProgressBar {
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background-color: #f0f0f0;
+    text-align: center;
+}
+
+QProgressDialog QProgressBar::chunk {
+    background-color: #0078d4;
+    border-radius: 3px;
+}
+
+/* QMessageBox样式 */
+QMessageBox {
+    background-color: white;
+    color: #333333;
+}
+
+QMessageBox QLabel {
+    color: #333333;
+}
+
+QMessageBox QPushButton {
+    background-color: #0078d4;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 12px;
+    min-width: 80px;
+}
+
+QMessageBox QPushButton:hover {
+    background-color: #106ebe;
+}

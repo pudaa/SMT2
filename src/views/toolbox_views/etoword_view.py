@@ -314,7 +314,22 @@ class CompositePreviewItemWidget(QWidget):
         display_text = " ".join(display_parts)
         self.content_label.setText(display_text)
     
+    def on_style_changed(self, style):
+        # 更新所有子项目样式
+        for item in self.items:
+            item["style"] = style
+        self.update_display_text()
     
+    def add_field_to_composite(self):
+        """向组合项添加新字段"""
+        # 这里可以通过弹窗或其他方式让用户选择要添加的字段
+        # 暂时留空，后续实现具体的添加逻辑
+        pass
+    
+    def delete_item(self):
+        parent = self.parent()
+        if parent and hasattr(parent, 'remove_composite_preview_item'):
+            parent.remove_composite_preview_item(self.index)
     
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -697,6 +712,26 @@ class ExcelToWordView(QWidget):
         
         self.refresh_preview_area()
         
+    def add_item_to_column(self, column_title, title, mode):
+        """向指定列添加字段（列内横向排列）"""
+        if self.excel_data is None:
+            QMessageBox.warning(self, "警告", "请先加载Excel文件！")
+            return
+
+        if title in self.excel_data.columns:
+            try:
+                value = str(self.excel_data.iloc[0][title]) if len(self.excel_data) > 0 else ""
+            except Exception:
+                value = "示例值"
+        else:
+            value = "示例值"
+
+        item = {"title": title, "value": value, "style": "正文"}
+        if column_title not in self.preview_columns:
+            self.preview_columns[column_title] = []
+        self.preview_columns[column_title].append(item)
+        self.refresh_preview_area()
+        
     def add_column_with_item(self, title, mode):
         """在列模式下，新建一列并把字段作为该列的第一个元素"""
         if self.excel_data is None:
@@ -752,8 +787,10 @@ class ExcelToWordView(QWidget):
         
         for col_title, items in self.preview_columns.items():
             col_widget = CompositePreviewItemWidget.ColumnPreviewWidget(col_title, items, self.preview_widget)
-            self.preview_layout.addWidget(col_widget)                
-        
+            col_widget.add_item_to_column = self.add_item_to_column
+            self.preview_layout.addWidget(col_widget)   
+            
+        self.preview_layout.addStretch()        
         QTimer.singleShot(10, lambda: scrollbar.setValue(saved_scroll_pos))
         
     class DocGenerator(QThread):

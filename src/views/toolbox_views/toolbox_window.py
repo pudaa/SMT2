@@ -257,26 +257,16 @@ class ToolBoxWindow(QWidget):
         if event.buttons() == Qt.LeftButton:
             self.move(event.globalPos() - self.drag_start_position)
             event.accept()
-
-    def toggle_theme(self):
-        """切换明暗主题"""
-        theme_style = self.theme_manager.toggle_theme()
-        self.is_dark_theme = self.theme_manager.is_dark_theme
-        self.apply_stylesheet()
     
     def apply_stylesheet(self):
         """应用样式表"""
         theme_style = self.theme_manager.get_current_theme()
         self.setStyleSheet(theme_style)
-    
-    def set_light_theme(self):
-        """设置浅色主题"""
-        theme_style = self.theme_manager.set_light_theme()
-        self.is_dark_theme = False
+
+    def toggle_theme(self):
+        """切换明暗主题"""
+        theme_style = self.theme_manager.toggle_theme()
+        self.is_dark_theme = self.theme_manager.is_dark_theme
+        self.theme_manager.apply_theme_to_window(self)
         self.apply_stylesheet()
-    
-    def set_dark_theme(self):
-        """设置深色主题"""
-        theme_style = self.theme_manager.set_dark_theme()
-        self.is_dark_theme = True
-        self.apply_stylesheet()
+
