@@ -259,7 +259,7 @@ class CompositePreviewItemWidget(QWidget):
                 super().dragEnterEvent(event)
 
         def dropEvent(self, event):
-            if event.mimeData().hasFormat("application/x-etoword-item"):
+            if event.mimeData().hasFormat("application/x-etoword-item"): # 列内字段拖拽
                 data = event.mimeData().data("application/x-etoword-item").data().decode()
                 title, mode = data.split("|")
                 # 调用父控件的方法把字段加入到该列
@@ -410,10 +410,7 @@ class ExcelToWordView(QWidget):
     def __init__(self):
         super().__init__()
         self.excel_data: Optional[pd.DataFrame] = None
-        self.preview_items = []  # 单个字段的预览项
         self.preview_columns = OrderedDict()  # 列模式：每列包含多个横向字段
-        self.selected_rows = []  # 行模式：被选中的行索引列表（用于遍历）
-        self.composite_preview_items = []  # 复合字段的预览项
         self.setAcceptDrops(True)  # 启用拖拽功能
         self.init_ui()
 
@@ -565,7 +562,6 @@ class ExcelToWordView(QWidget):
             QMessageBox.warning(self, "警告", "请先加载Excel文件！")
 
     def update_preview(self):
-        self.preview_items = []
         self.refresh_preview_area()
         
         if self.excel_data is None:
@@ -576,43 +572,43 @@ class ExcelToWordView(QWidget):
             mode = self.mode_combo.currentText()
         selected_titles = [self.title_list.item(i).text() for i in range(self.title_list.count())]
         
-        # 处理选中项：在列模式下，选中项是列名，用以构建模板；
-        # 在行模式下，选中项是行索引，用以构建 selected_rows（遍历时使用）
-        if mode == "列模式":
-            # 重建模板
-            self.preview_columns = OrderedDict()
-            for title in selected_titles:
+        # 统一处理：无论是列模式还是行模式，都构建相同的模板结构
+        self.preview_columns = OrderedDict()
+        for title in selected_titles:
+            if mode == "列模式":
+                # 列模式：使用列名作为字段标识
                 if title in self.excel_data.columns and len(self.excel_data) > 0:
                     value = str(self.excel_data.iloc[0][title])
                 else:
                     value = ""
-                item = {"title": title, "value": value, "style": "正文"}
-                self.preview_columns[title] = [item]
-            # 在切换到列模式时，清空 selected_rows（行选择）
-            self.selected_rows = []
-        else:
-            # 更新所选行集合（不改变模板）
-            self.selected_rows = []
-            for title in selected_titles:
+            else:
+                # 行模式：使用行索引作为字段标识
                 try:
                     if title.startswith("行 "):
                         row_index = int(title.split()[1])
                     else:
                         row_index = int(title)
                     if 0 <= row_index < len(self.excel_data):
-                        self.selected_rows.append(row_index)
+                        # 获取该行的所有列数据，用列名作为key
+                        row_data = self.excel_data.iloc[row_index]
+                        # 取第一列的值作为示例显示
+                        first_col = self.excel_data.columns[0] if len(self.excel_data.columns) > 0 else ""
+                        value = str(row_data[first_col]) if first_col else ""
+                    else:
+                        value = ""
                 except (ValueError, IndexError):
-                    continue
+                    value = ""
+            
+            item = {"title": title, "value": value, "style": "正文"}
+            self.preview_columns[title] = [item]
         
         # 刷新显示（始终以模板 preview_columns 渲染预览区）
         self.refresh_preview_area()
 
-    def update_item_style(self, index, style):
-        self.preview_items[index]["style"] = style
-
     def on_mode_changed(self, mode):
         # 切换模式时需更新左侧可拖拽项以及预览
         self.update_title_list()
+        self.preview_columns.clear()
         self.refresh_preview_area()
 
     def add_item_to_template(self, title, mode):
@@ -621,38 +617,86 @@ class ExcelToWordView(QWidget):
             QMessageBox.warning(self, "警告", "请先加载Excel文件！")
             return
 
-        # 列模式 -> 将字段放入列容器（如果在预览区直接放置则作为新列）
         if mode == "列模式":
-            # 将该字段作为新的一列并在该列内添加此字段为首项
-            self.add_column_with_item(title, mode)
-            return
-
-        # 行模式：被拖入的行为“选择行”，不改变模板；在 selected_rows 中记录
-        if mode == "行模式":
+            # 列模式：使用列名
+            if title in self.excel_data.columns:
+                try:
+                    value = str(self.excel_data.iloc[0][title]) if len(self.excel_data) > 0 else ""
+                except Exception:
+                    value = "示例值"
+            else:
+                QMessageBox.warning(self, "警告", f"列 '{title}' 不存在！")
+                return
+        else:
+            # 行模式：使用行索引
             try:
                 if title.startswith("行 "):
                     row_index = int(title.split()[1])
                 else:
                     row_index = int(title)
+                
                 if 0 <= row_index < len(self.excel_data):
-                    if row_index not in self.selected_rows:
-                        self.selected_rows.append(row_index)
-                        # 让用户看到已选择的行（刷新预览区会显示摘要）
-                        self.refresh_preview_area()
+                    # 获取该行的第一列数据作为示例值
+                    first_col = self.excel_data.columns[0] if len(self.excel_data.columns) > 0 else ""
+                    value = str(self.excel_data.iloc[row_index][first_col]) if first_col else "示例值"
                 else:
                     QMessageBox.warning(self, "警告", f"行索引 {row_index} 超出范围！")
+                    return
             except (ValueError, IndexError):
                 QMessageBox.warning(self, "警告", f"无法解析行标题: {title}")
+                return
+        
+        # 统一添加到模板
+        item = {"title": title, "value": value, "style": "正文"}
+        if title not in self.preview_columns:
+            self.preview_columns[title] = []
+        self.preview_columns[title].append(item)
+        self.refresh_preview_area()
+
+    def add_item_to_template_at_position(self, title, mode, position):
+        """在指定位置添加项目到模板 - 统一处理"""
+        if self.excel_data is None:
+            QMessageBox.warning(self, "警告", "请先加载Excel文件！")
             return
-
-    def add_preview_item_widget(self, index, item):
-        """添加单个预览项小部件"""
-        preview_item = PreviewItemWidget(index, item, self.preview_widget)
-        # 连接删除信号
-        preview_item.item_deleted.connect(self.handle_item_deletion)
-        self.preview_layout.addWidget(preview_item)
-        preview_item.index = index  # 保存索引用于删除
-
+            
+        # 统一获取数据值逻辑
+        if mode == "列模式":
+            if title in self.excel_data.columns:
+                value = str(self.excel_data.iloc[0][title]) if len(self.excel_data) > 0 else ""
+            else:
+                QMessageBox.warning(self, "警告", f"列 '{title}' 不存在！")
+                return
+        else:  # 行模式
+            try:
+                if title.startswith("行 "):
+                    row_index = int(title.split()[1])
+                else:
+                    row_index = int(title)
+                
+                if 0 <= row_index < len(self.excel_data):
+                    # 获取该行的第一列数据
+                    first_col = self.excel_data.columns[0] if len(self.excel_data.columns) > 0 else ""
+                    value = str(self.excel_data.iloc[row_index][first_col]) if first_col else ""
+                else:
+                    QMessageBox.warning(self, "警告", f"行索引 {row_index} 超出范围！")
+                    return
+            except (ValueError, IndexError):
+                QMessageBox.warning(self, "警告", f"无法解析行标题: {title}")
+                return
+        
+        # 统一添加逻辑
+        item = {"title": title, "value": value, "style": "正文"}
+        # 在preview_columns中找到合适的位置插入
+        keys = list(self.preview_columns.keys())
+        if position < len(keys):
+            target_key = keys[position]
+            self.preview_columns[target_key].insert(0, item)  # 插入到该列的开头
+        else:
+            # 如果位置超出，添加为新列
+            self.preview_columns[title] = [item]
+        
+        self.refresh_preview_area()
+        
     def add_column_with_item(self, title, mode):
         """在列模式下，新建一列并把字段作为该列的第一个元素"""
         if self.excel_data is None:
@@ -675,25 +719,6 @@ class ExcelToWordView(QWidget):
         self.preview_columns[title].append(item)
         self.refresh_preview_area()
 
-    def add_item_to_column(self, column_title, title, mode):
-        """向指定列添加字段（列内横向排列）"""
-        if self.excel_data is None:
-            QMessageBox.warning(self, "警告", "请先加载Excel文件！")
-            return
-
-        if title in self.excel_data.columns:
-            try:
-                value = str(self.excel_data.iloc[0][title]) if len(self.excel_data) > 0 else ""
-            except Exception:
-                value = "示例值"
-        else:
-            value = "示例值"
-
-        item = {"title": title, "value": value, "style": "正文"}
-        if column_title not in self.preview_columns:
-            self.preview_columns[column_title] = []
-        self.preview_columns[column_title].append(item)
-        self.refresh_preview_area()
 
     def handle_bottom_drop(self, title, mode):
         """处理底部 20px 拖拽区放下事件：列模式新建列，行模式作为普通项加入末尾"""
@@ -702,68 +727,6 @@ class ExcelToWordView(QWidget):
         else:
             self.add_item_to_template(title, mode)
     
-    def handle_item_deletion(self, index):
-        """处理项目删除请求"""
-        if 0 <= index < len(self.preview_items):
-            # 从数据列表中删除
-            self.preview_items.pop(index)
-            # 重新创建所有预览项以更新索引
-            self.refresh_preview_area()
-    
-    def add_item_to_template_at_position(self, title, mode, position):
-        """在指定位置添加项目到模板"""
-        if self.excel_data is None:
-            QMessageBox.warning(self, "警告", "请先加载Excel文件！")
-            return
-            
-        # 获取数据值
-        if mode == "列模式":
-            if title in self.excel_data.columns:
-                value = str(self.excel_data.iloc[0][title]) if len(self.excel_data) > 0 else ""
-            else:
-                QMessageBox.warning(self, "警告", f"列 '{title}' 不存在！")
-                return
-        else:  # 行模式
-            try:
-                if title.startswith("行 "):
-                    row_index = int(title.split()[1])
-                else:
-                    row_index = int(title)
-                
-                if 0 <= row_index < len(self.excel_data):
-                    value = str(self.excel_data.iloc[row_index].tolist())
-                else:
-                    QMessageBox.warning(self, "警告", f"行索引 {row_index} 超出范围！")
-                    return
-            except (ValueError, IndexError):
-                QMessageBox.warning(self, "警告", f"无法解析行标题: {title}")
-                return
-        
-        # 在指定位置插入项目（仅对行模板的可视化插入保留兼容）
-        item = {"title": title, "value": value, "style": "正文"}
-        # 在我们的统一模型中，插入到预览项仅在需要时使用；这里保持向后兼容：
-        self.preview_items.insert(position, item)
-        self.refresh_preview_area()
-    
-    def remove_preview_item(self, index):
-        """删除预览项"""
-        if 0 <= index < len(self.preview_items):
-            self.preview_items.pop(index)
-            # 重新创建所有预览项
-            self.refresh_preview_area()
-    
-    def remove_preview_item_by_widget(self, widget):
-        """通过widget实例删除预览项"""
-        # 找到widget在布局中的索引
-        for i in range(self.preview_layout.count()):
-            item = self.preview_layout.itemAt(i)
-            if item and item.widget() == widget:
-                # 从数据列表中删除
-                if 0 <= i < len(self.preview_items):
-                    self.preview_items.pop(i)
-                    # 重新创建所有预览项以更新索引
-                    self.refresh_preview_area()
-                break
 
     def refresh_preview_area(self):
         """刷新预览区域"""
@@ -787,42 +750,20 @@ class ExcelToWordView(QWidget):
                         if child_item and child_item.widget():
                             child_item.widget().setParent(None)
         
-        # 始终以列模板渲染预览区（preview_columns 是统一的模板模型）
         for col_title, items in self.preview_columns.items():
             col_widget = CompositePreviewItemWidget.ColumnPreviewWidget(col_title, items, self.preview_widget)
-            self.preview_layout.addWidget(col_widget)
-
-        # 如果处于行模式且用户选择了若干行，显示一个简短的摘要以便用户知道将要遍历哪些行
-        mode = "列模式"
-        if hasattr(self, 'mode_combo') and self.mode_combo is not None:
-            mode = self.mode_combo.currentText()
-        if mode == "行模式" and getattr(self, 'selected_rows', None):
-            # 在模板之后显示所选行摘要
-            rows_text = ",".join(str(r) for r in sorted(self.selected_rows))
-                
+            self.preview_layout.addWidget(col_widget)                
         
         QTimer.singleShot(10, lambda: scrollbar.setValue(saved_scroll_pos))
-    
-    def refresh_composite_preview_area(self):
-        """刷新复合预览区域"""
-        # 这里可以根据需要实现复合预览区域的刷新逻辑
-        pass
-    
-    def add_composite_item(self, items):
-        """添加复合预览项"""
-        composite_item = CompositePreviewItemWidget(len(self.composite_preview_items), items, self.preview_widget)
-        self.composite_preview_items.append(composite_item)
-        self.preview_layout.addWidget(composite_item)
         
     class DocGenerator(QThread):
         """在后台线程中生成 Word 文档，使用传入的模板快照和遍历方式，避免直接访问 GUI 对象。"""
         finished = Signal(bool, str)  # success, path_or_message
 
-        def __init__(self, preview_columns_snapshot, excel_data, selected_rows_snapshot, traversal, title, output_path="output.docx"):
+        def __init__(self, preview_columns_snapshot, excel_data, traversal, title, output_path="output.docx"):
             super().__init__()
             self.preview_columns = preview_columns_snapshot
             self.excel_data = excel_data
-            self.selected_rows = selected_rows_snapshot
             self.traversal = traversal  # 'col' or 'row'
             self.title = title
             self.output_path = output_path
@@ -839,7 +780,7 @@ class ExcelToWordView(QWidget):
             normal.font.name = 'SimSun'
             normal._element.rPr.rFonts.set(qn('w:eastAsia'), 'SimSun')
             normal.font.color.rgb = RGBColor(0, 0, 0)
-            normal.font.size = Pt(12)  # 小四
+            normal.font.size = Pt(10.5)  # 5号字体
 
             # === 2. 创建自定义标题样式 ===
             # 自定义主标题
@@ -912,6 +853,7 @@ class ExcelToWordView(QWidget):
                     s.font.name = 'SimSun'
                     s._element.rPr.rFonts.set(qn('w:eastAsia'), 'SimSun')
                     s.font.color.rgb = RGBColor(0, 0, 0)
+                    s.font.size = Pt(10.5)  # 5号字体
 
             # 字符样式
             for style_name in ['Strong', 'Emphasis']:
@@ -920,6 +862,7 @@ class ExcelToWordView(QWidget):
                     s.font.name = 'SimSun'
                     s._element.rPr.rFonts.set(qn('w:eastAsia'), 'SimSun')
                     s.font.color.rgb = RGBColor(0, 0, 0)
+                    s.font.size = Pt(10.5)  # 5号字体
                     
             # === 4. 隐藏 latent styles ===
             latent_styles = doc.styles.latent_styles
@@ -946,11 +889,11 @@ class ExcelToWordView(QWidget):
                     self.finished.emit(True, self.output_path)
                     return
 
-                # 根据遍历方向生成文档：'col' -> 按行遍历所有行；'row' -> 按选中行遍历
+                # 根据遍历方向生成文档：'col' -> 按行遍历所有行；'row' -> 遍历所有列
                 if self.traversal == 'col':
                     row_indices = range(len(self.excel_data)) if self.excel_data is not None else []
                 else:
-                    row_indices = self.selected_rows
+                    row_indices = range(len(self.excel_data)) if self.excel_data is not None else []
 
                 first = True
                 for i, row_index in enumerate(row_indices):
@@ -965,26 +908,53 @@ class ExcelToWordView(QWidget):
                         items_with_values = []
                         for item in items:
                             field = item.get("title")
-                            if self.excel_data is None or field not in self.excel_data.columns:
-                                value = ""
-                            else:
-                                try:
-                                    value = str(self.excel_data.iloc[row_index][field])
-                                    if not value or value.lower() == "nan":
+                            
+                            if self.traversal == 'col':
+                                # 列模式：field是列名，获取对应行的数据
+                                if self.excel_data is None or field not in self.excel_data.columns:
+                                    value = ""
+                                else:
+                                    try:
+                                        value = str(self.excel_data.iloc[row_index][field])
+                                        if not value or value.lower() == "nan":
+                                            value = ""
+                                    except Exception:
                                         value = ""
-                                except Exception:
+                            else:
+                                # 行模式：field是行索引，获取该行各列的数据
+                                try:
+                                    if field.startswith("行 "): # 行索引为行号
+                                        target_row = int(field.split()[1])
+                                    else:
+                                        target_row = int(field)
+                                    
+                                    if 0 <= target_row < len(self.excel_data):
+                                        # 获取该行的对应列数据
+                                        col_index = row_index  # 使用当前遍历的列索引
+                                        if col_index < len(self.excel_data.columns):
+                                            col_name = self.excel_data.columns[col_index]
+                                            value = str(self.excel_data.iloc[target_row][col_name])
+                                            if not value or value.lower() == "nan":
+                                                value = ""
+                                        else:
+                                            value = ""
+                                    else:
+                                        value = ""
+                                except (ValueError, IndexError):
                                     value = ""
                             items_with_values.append({"title": field, "value": value, "style": item.get("style", "正文")})
 
                         # 使用复合格式将列内所有字段横向合并显示
                         # 采用第一个子项的样式作为整列样式
                         style = items_with_values[0].get("style", "正文") if items_with_values else "正文"
-                        # 复用父类的格式化函数：手工实现与 _add_composite_formatted_content 相同逻辑
                         display_parts = []
                         for it in items_with_values:
                             v = it.get("value", "")
-                            display_parts.append(v if v else "")
+                            display_parts.append(v if v else "") 
                         display_text = " ".join(display_parts)
+                        
+                        if display_text == "":
+                            continue
 
                         if style == "一级标题":
                             p = doc.add_paragraph(display_text, style='In Heading 1')
@@ -1045,11 +1015,10 @@ class ExcelToWordView(QWidget):
             output_path = "output.docx"
             # 在主线程对模板和选择行进行快照，避免线程访问 GUI 对象
             preview_columns_snapshot = deepcopy(self.preview_columns)
-            selected_rows_snapshot = list(self.selected_rows)
             traversal = 'col' if (hasattr(self, 'mode_combo') and self.mode_combo.currentText() == '列模式') else 'row'
             title_snapshot = self.primary_title.text().strip() if hasattr(self, 'primary_title') else ''
 
-            self._doc_worker = ExcelToWordView.DocGenerator(preview_columns_snapshot, self.excel_data, selected_rows_snapshot, traversal, title_snapshot, output_path)
+            self._doc_worker = ExcelToWordView.DocGenerator(preview_columns_snapshot, self.excel_data, traversal, title_snapshot, output_path)
             self._doc_worker.finished.connect(self._on_doc_generation_finished)
             self._doc_worker.start()
         except Exception as e:

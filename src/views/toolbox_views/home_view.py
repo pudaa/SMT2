@@ -33,10 +33,8 @@ class HomeView(QWidget):
         # 添加功能列表
         features_label = QLabel("""
         <ul style="text-align: left; margin-left: 120px;">
-            <li>配置管理 - 轻松管理应用配置</li>
-            <li>主题切换 - 支持明暗主题切换</li>
-            <li>窗口置顶 - 快速置顶任意窗口</li>
-            <li>性能监控 - 实时监控系统性能</li>
+            <li>Excel转word</li>
+            <li>设置</li>
         </ul>
         """)
         features_label.setAlignment(Qt.AlignCenter)
