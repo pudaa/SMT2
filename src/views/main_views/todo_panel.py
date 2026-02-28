@@ -4,7 +4,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox, QLineEdit,
     QScrollArea, QFrame, QSizePolicy, QTextEdit, QToolButton, QScrollBar
 )
-from PySide6.QtCore import Qt, QPoint, Signal, QThread, QObject
+from PySide6.QtCore import Qt, QPoint, Signal, QThread, QObject, QTimer, QPropertyAnimation, QEasingCurve
 from PySide6.QtGui import QMouseEvent, QFontMetrics, QWheelEvent
 from src.utils.todo_tag_extractor import TodoTagExtractor
 from src.configs.base_config import get_qss_color, get_todo_file_name
@@ -33,6 +33,7 @@ class TodoItemWidget(QWidget): # 单个待办事项组件
     moveDownRequested = Signal(object)  # 请求向下移动
     isDraggingOn = Signal(object)# 正在拖动信号
     isDraggingDown = Signal(object)# 停止拖动信号
+    deletionCompleted = Signal(object)  # 删除完成信号
     
     def __init__(self, text="", parent=None):
         super().__init__(parent)
@@ -116,6 +117,11 @@ class TodoItemWidget(QWidget): # 单个待办事项组件
         self.text_field.textChanged.connect(self.on_text_changed)
         self.checkbox.clicked.connect(self.on_checkbox_clicked)
     
+        
+        # 删除动画相关属性
+        self.deletion_animation = None
+        self.original_height = 32
+
     def get_text(self):
         return self.text_field.text()
         
@@ -260,6 +266,29 @@ class TodoItemWidget(QWidget): # 单个待办事项组件
                 return
         super().mouseReleaseEvent(event)
 
+    
+    def start_deletion_animation(self):
+        """启动删除动画"""
+        from PySide6.QtCore import QPropertyAnimation, QEasingCurve
+        
+        if self.deletion_animation is not None:
+            self.deletion_animation.stop()
+            
+        # 创建高度动画
+        self.deletion_animation = QPropertyAnimation(self, b"minimumHeight")
+        self.deletion_animation.setDuration(250)  # 250毫秒动画时间
+        self.deletion_animation.setStartValue(self.height())
+        self.deletion_animation.setEndValue(0)
+        self.deletion_animation.setEasingCurve(QEasingCurve.InQuad)  # 先慢后快的曲线
+        
+        # 动画完成后发出信号并清理
+        self.deletion_animation.finished.connect(self.on_deletion_finished)
+        self.deletion_animation.start()
+    
+    def on_deletion_finished(self):
+        """删除动画完成后的处理"""
+        self.deletionCompleted.emit(self)
+        self.deleteLater()
 
 class TagScrollArea(QScrollArea):
     """支持滚轮的横向滚动区域"""
@@ -397,6 +426,7 @@ class TodoPanel(QWidget):
     def handle_scroll_area_double_click(self, event):
         """处理在滚动区域空白处的双击事件"""
         self.create_new_todo_item()
+        QTimer.singleShot(50, lambda: self.slide_bottom())
                 
     def create_new_todo_item(self):
         """创建新的待办事项"""
@@ -407,7 +437,8 @@ class TodoPanel(QWidget):
         new_item.text_field.textChanged.connect(self.on_text_changed)
         new_item.text_field.returnPressed.connect(lambda: self.on_return_pressed(new_item))
         # 当项目被标记为完成时，失去焦点后自动销毁
-        new_item.checkbox.clicked.connect(lambda: self.on_checkbox_clicked(new_item))
+        # new_item.checkbox.clicked.connect(lambda: self.on_checkbox_clicked(new_item))
+        
         
     def add_todo_item(self, text="", is_new=False):
         todo_widget = TodoItemWidget(text)
@@ -429,6 +460,9 @@ class TodoPanel(QWidget):
         todo_widget.isDraggingOn.connect(lambda *args: setattr(self, 'is_dragging', True))
         todo_widget.isDraggingDown.connect(lambda *args: setattr(self, 'is_dragging', False))
             
+        # 连接删除完成信号
+        todo_widget.deletionCompleted.connect(self.on_item_deletion_completed)
+          
         return todo_widget
         
     def move_item_up(self, item):
@@ -604,7 +638,7 @@ class TodoPanel(QWidget):
         if not self.selected_tags:
             for i in range(self.todo_layout.count() - 1):  # 排除最后的Stretch
                 widget = self.todo_layout.itemAt(i).widget()
-                if isinstance(widget, TodoItemWidget):
+                if isinstance(widget, TodoItemWidget): # TodoItemWidget
                     widget.setVisible(True)
             return
             
@@ -660,6 +694,7 @@ class TodoPanel(QWidget):
         items_changed = False
         self.refresh_tags()
         
+        # 检查所有项目
         for i in range(self.todo_layout.count() - 1):
             widget = self.todo_layout.itemAt(i).widget()
             if isinstance(widget, TodoItemWidget):
@@ -669,10 +704,11 @@ class TodoPanel(QWidget):
         
         # 批量删除
         for widget in to_remove:
-            self.todo_layout.removeWidget(widget)
-            if widget in self.todo_items:
-                self.todo_items.remove(widget)
-            widget.deleteLater()
+            # self.todo_layout.removeWidget(widget)
+            # if widget in self.todo_items:
+            #     self.todo_items.remove(widget)
+            self.remove_completed_item(widget)
+            # widget.deleteLater() # 释放内存
             
         if items_changed:
             self.save_todos()
@@ -694,20 +730,41 @@ class TodoPanel(QWidget):
                 self.todo_items.remove(item)
             item.deleteLater()
             self.save_todos()
-            
-    def on_checkbox_clicked(self, item):
-        if item.is_completed():
-            # 连接失去焦点事件
-            item.text_field.editingFinished.connect(lambda: self.remove_completed_item(item))
-        # 复选框状态改变后刷新标签
-        self.refresh_tags()
+        
             
     def remove_completed_item(self, item):
         if item.is_completed():
-            self.todo_layout.removeWidget(item)
-            if item in self.todo_items:
-                self.todo_items.remove(item)
-            item.deleteLater()
-            self.save_todos()
-            # 删除项目后刷新标签
-            self.refresh_tags()
+            # 启动删除动画而不是立即删除
+            item.start_deletion_animation()
+            
+    def on_item_deletion_completed(self, item):
+        """处理项目删除完成事件"""
+        # 从布局和列表中移除
+        self.todo_layout.removeWidget(item)
+        if item in self.todo_items:
+            self.todo_items.remove(item)
+        item.deleteLater() # 释放内存
+        # 保存并刷新
+        self.save_todos()
+        self.refresh_tags()
+            
+    def slide_bottom(self):
+        # 划到待办事项底部
+        
+        # 获取滚动条
+        scrollbar = self.scroll_area.verticalScrollBar()
+        target_value = scrollbar.maximum()
+        
+        # 如果已经在底部，直接返回
+        if scrollbar.value() == target_value:
+            return
+            
+        # 创建平滑滚动动画
+        self.scroll_animation = QPropertyAnimation(scrollbar, b"value")
+        self.scroll_animation.setDuration(300)  # 300毫秒动画时间
+        self.scroll_animation.setStartValue(scrollbar.value())
+        self.scroll_animation.setEndValue(target_value)
+        self.scroll_animation.setEasingCurve(QEasingCurve.OutCubic)  # 使用缓出曲线，更自然
+        
+        # 启动动画
+        self.scroll_animation.start()
