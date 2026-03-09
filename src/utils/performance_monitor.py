@@ -17,7 +17,7 @@ class PerformanceMonitor:
         return memory.percent / 100.0
     
     @staticmethod
-    def get_disk_percent(path:str="/") -> tuple[float, int]:
+    def get_disk_percent(path:str="/") -> tuple[float | None, int | str]:
         """获取磁盘使用率百分比"""
         try:
             if platform.system() == "Windows":

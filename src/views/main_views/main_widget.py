@@ -15,6 +15,7 @@ class MainWidget(QWidget):
         self.setFixedSize(250, 90)
         self.setWindowFlags(self.windowFlags() | Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint  | Qt.WindowType.WindowStaysOnTopHint)
         self.setAttribute(Qt.WA_TranslucentBackground)
+        
         # 主布局
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
