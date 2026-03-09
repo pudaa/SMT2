@@ -35,7 +35,7 @@ class MainWidget(QWidget):
         
         # 吸附相关
         self.snap_margin = 8  # 吸附阈值（像素）- 减小阈值，只在很靠近边缘时吸附
-        self.embed_offset = 2  # 嵌入偏移量（像素），防止遮挡
+        self.embed_offset = 1  # 嵌入偏移量（像素），防止遮挡
         self.is_snapped = False
         self.last_snap_region = None  # 记录最后吸附的区域
         self.snap_keep_pos = False  # 是否保持当前位置（用于上下边缘吸附时保持水平位置）
@@ -164,51 +164,48 @@ class MainWidget(QWidget):
         screen_geo = screen.availableGeometry()
         window_geo = self.geometry() # 获取窗口的 geometry，包含窗口标题栏和边框
         
-        snap_region = None
+        snap_regions = []
         
         # 检测左边缘
         if abs(window_geo.left() - screen_geo.left()) <= self.snap_margin or window_geo.left() < screen_geo.left():
-            snap_region = "left"
+            snap_regions.append("left")
         # 检测右边缘
-        elif abs(window_geo.right() - screen_geo.right()) <= self.snap_margin or window_geo.right() > screen_geo.right():
-            snap_region = "right"
+        if abs(window_geo.right() - screen_geo.right()) <= self.snap_margin or window_geo.right() > screen_geo.right():
+            snap_regions.append("right")
         # 检测上边缘
-        elif abs(window_geo.top() - screen_geo.top()) <= self.snap_margin or window_geo.top() < screen_geo.top():
-            snap_region = "top"
+        if abs(window_geo.top() - screen_geo.top()) <= self.snap_margin or window_geo.top() < screen_geo.top():
+            snap_regions.append("top")
         # 检测下边缘
-        elif abs(window_geo.bottom() - screen_geo.bottom()) <= self.snap_margin or window_geo.bottom() > screen_geo.bottom():
-            snap_region = "bottom"
+        if abs(window_geo.bottom() - screen_geo.bottom()) <= self.snap_margin or window_geo.bottom() > screen_geo.bottom():
+            snap_regions.append("bottom")
         
-        if snap_region and snap_region != self.last_snap_region:
-            self.snap_to_edge(screen_geo, snap_region)
-            self.last_snap_region = snap_region
-        elif not snap_region:
+        if snap_regions and snap_regions != self.last_snap_region:
+            self.snap_to_edge(screen_geo, snap_regions)
+            self.last_snap_region = snap_regions
+        elif not snap_regions:
             self.last_snap_region = None
     
-    def snap_to_edge(self, screen_geo: QRect, region: str):
-        """将窗口吸附到指定边缘并嵌入"""
-        target_pos = QPoint()
+    def snap_to_edge(self, screen_geo: QRect, regions: list):
+        """将窗口吸附到指定边缘并嵌入，支持多个边缘（拐角）"""
         current_pos = self.pos()
+        target_x = current_pos.x()
+        target_y = current_pos.y()
         
-        if region == "left":
-            # 左边缘：嵌入屏幕左侧，保持垂直位置
-            target_pos.setX(screen_geo.left() - self.embed_offset)
-            target_pos.setY(current_pos.y())
+        # 水平方向吸附
+        if "left" in regions:
+            target_x = screen_geo.left() - self.embed_offset
             
-        elif region == "right":
-            # 右边缘：嵌入屏幕右侧，保持垂直位置
-            target_pos.setX(screen_geo.right() - self.width() + self.embed_offset)
-            target_pos.setY(current_pos.y())
+        if "right" in regions:
+            target_x = screen_geo.right() - self.width() + self.embed_offset
+        
+        # 垂直方向吸附
+        if "top" in regions:
+            target_y = screen_geo.top() - self.embed_offset
             
-        elif region == "top":
-            # 上边缘：嵌入屏幕顶部，保持水平位置
-            target_pos.setX(current_pos.x())
-            target_pos.setY(screen_geo.top() - self.embed_offset)
-            
-        elif region == "bottom":
-            # 下边缘：窗口底部与屏幕底部对齐，确保窗口可见
-            target_pos.setX(current_pos.x())
-            target_pos.setY(screen_geo.bottom() - self.height() + self.embed_offset)
+        if "bottom" in regions:
+            target_y = screen_geo.bottom() - self.height() + self.embed_offset
+        
+        target_pos = QPoint(target_x, target_y)
         
         # 使用动画平滑移动到新位置
         self.pos_animation.stop()
