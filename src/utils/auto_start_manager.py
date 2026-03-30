@@ -8,10 +8,13 @@ class AutoStartManager:
     
     def __init__(self):
         self.app_name = "SMT2"
-        if sys.executable.endswith('python.exe'):
-            self.file_path = sys.executable.replace('python.exe', 'pythonw.exe') + ' ' + os.path.abspath(sys.argv[0])
+        if getattr(sys, 'frozen', False):  # 检查是否为打包后的环境
+            self.file_path = os.path.abspath(sys.executable)  # EXE 文件路径
         else:
-            self.file_path = os.path.abspath(sys.argv[0])
+            if sys.executable.endswith('python.exe'):
+                self.file_path = sys.executable.replace('python.exe', 'pythonw.exe') + ' ' + os.path.abspath(sys.argv[0])
+            else:
+                self.file_path = os.path.abspath(sys.argv[0])
         self.reg_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
     
     def is_auto_start_enabled(self) -> bool:
@@ -35,7 +38,9 @@ class AutoStartManager:
     
     def _get_current_file_path(self):
         """获取当前的文件路径"""
-        if sys.executable.endswith('python.exe'):
+        if getattr(sys, 'frozen', False): 
+            return os.path.abspath(sys.executable) 
+        elif sys.executable.endswith('python.exe'):
             return sys.executable.replace('python.exe', 'pythonw.exe') + ' ' + os.path.abspath(sys.argv[0])
         else:
             return os.path.abspath(sys.argv[0])
