@@ -2,7 +2,6 @@ import psutil
 import shutil
 import platform
 from datetime import datetime
-import wmi
 
 class PerformanceMonitor:
     @staticmethod

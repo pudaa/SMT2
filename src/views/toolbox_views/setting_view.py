@@ -9,7 +9,7 @@ from PySide6.QtGui import QColor
 import json
 import os
 from src.configs.defaul_config import defaul_config
-
+from src.utils.auto_start_manager import AutoStartManager
 
 class SettingView(QScrollArea):
     # 信号，当配置更改时发出
@@ -25,6 +25,9 @@ class SettingView(QScrollArea):
         # 用于跟踪配置是否被修改
         self.config_modified = False
         self.default_config = defaul_config()
+        
+        # 初始化自启管理器
+        self.auto_start_manager = AutoStartManager()
         
         # 主控件
         self.scrollWidget = QWidget()
@@ -127,19 +130,30 @@ class SettingView(QScrollArea):
     
     def create_cards(self):
         """创建配置卡片"""
+        group_names = {
+            "colors": "颜色设置",
+            "todo_file_name": "待办事项路径",
+            "extractor_model": "标签提取模型",
+            "todo_poses": "标签提取规则",
+            "font": "字体设置",
+            "auto_start": "开机自启"
+        }
         for key, value in self.config_data.items():
+            # print(f"key: {key}, value: {value}, type: {type(value)}")
             if key == "colors":
                 self.create_colors_group(value)
-            elif isinstance(value, (str, int, bool)):
-                self.create_general_group(key, value)
+            elif isinstance(value, bool) or str(value) in ['true', 'false']:
+                self.create_is_active_group(group_names[key], key, value)
+            elif isinstance(value, (str, int)):
+                self.create_general_group(group_names[key], key, value)
             elif isinstance(value, list):
-                self.create_list_group(key, value)
+                self.create_list_group(group_names[key], key, value)
             elif isinstance(value, dict):
-                self.create_dict_group(key, value)
+                self.create_dict_group(group_names[key], key, value)
     
-    def create_general_group(self, key, value):
+    def create_general_group(self, group_name, key, value):
         """创建常规设置组"""
-        group = QGroupBox(key.replace('_', ' ').title())
+        group = QGroupBox(group_name)
         layout = QFormLayout(group)
         
         if isinstance(value, str):
@@ -156,10 +170,34 @@ class SettingView(QScrollArea):
             layout.addRow(key.replace('_', ' ').title() + ":", line_edit)
         
         self.main_layout.addWidget(group)
+        
+    def create_is_active_group(self, group_name, key, value):
+        """创建是否激活设置组"""
+        group = QGroupBox(group_name)
+        layout = QVBoxLayout(group)
+        
+        checkbox = QCheckBox("启用开机自启")
+        
+        registry_status = self.auto_start_manager.is_auto_start_enabled()
+        config_value = self.config_data.get(key, False)
+        if isinstance(config_value, str):
+            config_value = config_value.lower() in ['true', '1', 'yes']
+        
+        final_state = registry_status if registry_status != config_value else config_value
+        checkbox.setChecked(bool(final_state))
+        checkbox.setObjectName(f"checkbox_{key}")
+        checkbox.stateChanged.connect(lambda state, k=key: self.on_auto_start_changed(k, state))
+        
+        label = QLabel("启用后，程序将在系统启动时自动运行")
+        label.setStyleSheet("color: #888; font-size: 12px;")
+        
+        layout.addWidget(checkbox)
+        layout.addWidget(label)
+        self.main_layout.addWidget(group)
     
-    def create_list_group(self, key, value):
+    def create_list_group(self, group_name, key, value):
         """创建列表设置组"""
-        group = QGroupBox(key.replace('_', ' ').title())
+        group = QGroupBox(group_name)
         layout = QVBoxLayout(group)
         
         # 创建一个容器来显示列表项
@@ -260,9 +298,9 @@ class SettingView(QScrollArea):
             return values
         return []
     
-    def create_dict_group(self, key, value):
+    def create_dict_group(self, group_name, key, value):
         """创建字典设置组"""
-        group = QGroupBox(key.replace('_', ' ').title())
+        group = QGroupBox(group_name)
         layout = QVBoxLayout(group)
         
         form_layout = QFormLayout()
@@ -445,3 +483,42 @@ class SettingView(QScrollArea):
         self.config_data[dict_key] = current_dict
         self.config_modified = True
         self.changes_made.emit()
+    
+    def on_auto_start_changed(self, key, state):
+        """当开机自启状态改变时调用"""
+        enabled = int(state) == 2
+        
+        current_status = self.auto_start_manager.is_auto_start_enabled()
+        
+        # print(f"=== 开机自启状态变化 ===")
+        # print(f"复选框状态值：{state}, 转换为整数：{int(state)}")
+        # print(f"目标启用：{enabled}, 当前注册表状态：{current_status}")
+        
+        if enabled and not current_status:
+            success = self.auto_start_manager.enable_auto_start()
+            operation = "启用"
+        elif not enabled and current_status:
+            success = self.auto_start_manager.disable_auto_start()
+            operation = "禁用"
+        else:
+            success = True
+            operation = "状态未改变"
+        
+        new_status = self.auto_start_manager.is_auto_start_enabled()
+        # print(f"操作类型：{operation}, 操作结果：{success}, 实际状态：{new_status}")
+        # print(f"========================")
+        
+        if success:
+            self.config_data[key] = new_status
+            self.config_modified = True
+            
+            self.save_config()
+            
+            self.changes_made.emit()
+        else:
+            print(f"操作失败")
+            checkbox = self.sender()
+            if checkbox:
+                checkbox.blockSignals(True)
+                checkbox.setChecked(not enabled)
+                checkbox.blockSignals(False)

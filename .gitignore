@@ -43,3 +43,4 @@ history/
 
 # Privacy files
 resources/todos.json
+resources/properties.json

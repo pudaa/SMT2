@@ -6,6 +6,7 @@ from PySide6.QtWidgets import QApplication, QSystemTrayIcon
 from PySide6.QtCore import Qt, QTimer
 from src.views.main_views.main_widget import MainWidget
 from src.tray.system_tray import SystemTrayIcon
+from src.utils.auto_start_manager import AutoStartManager
 
 def main():
     QApplication.setHighDpiScaleFactorRoundingPolicy(
@@ -13,6 +14,11 @@ def main():
     
     app = QApplication(sys.argv)
     widget = MainWidget()
+    
+    auto_start_manager = AutoStartManager()
+    is_auto_start = auto_start_manager.is_auto_start_enabled()
+    print(f"开机自启状态：{'已启用' if is_auto_start else '未启用'}")
+    
     widget.show()
     
     if QSystemTrayIcon.isSystemTrayAvailable():

@@ -150,22 +150,5 @@
             85
         ]
     },
-    "excel2word": {
-        "layout_mode": [
-            1,
-            [
-                "跟随题目",
-                "整体后置"
-            ]
-        ],
-        "option_prefix": [
-            0,
-            [
-                "A.",
-                "A、",
-                "A:",
-                "A："
-            ]
-        ]
-    }
+    "auto_start": false
 }
