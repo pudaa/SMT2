@@ -1,16 +1,29 @@
 from PySide6.QtWidgets import QWidget
-from PySide6.QtGui import QPainter, QColor, QFont, QPen
-from PySide6.QtCore import Qt, QTimer
-from datetime import datetime
+from PySide6.QtGui import QPainter
+from PySide6.QtCore import Qt, QTimer, Signal
 from src.utils.performance_monitor import PerformanceMonitor
-from src.configs.base_config import get_color
+from src.themes import theme_manager
 
 class PerformancePanel(QWidget):
+    """性能/时间进度面板
+    
+    支持三种显示模式:
+      - normal  : 常规模式
+      - compact : 紧凑模式
+      - mini    : 极简模式，仅显示时间
+    
+    绘制逻辑完全委托给当前主题的 paint_panel()，
+    使得不同主题可以实现完全不同的布局。
+    """
+    
+    mode_changed = Signal(str)
+
     def __init__(self):
         super().__init__()
-        self.setFixedSize(250, 90)
-        self.setAttribute(Qt.WA_TranslucentBackground) 
+        self.setAttribute(Qt.WA_TranslucentBackground)
         
+        # ---- 面板模式 ----
+        self._panel_mode: str = "normal"
         
         # 性能数据
         self.cpu_percent = 0
@@ -24,103 +37,98 @@ class PerformancePanel(QWidget):
         self.month_progress = 0
         self.year_progress = 0
         
-        # 模式切换
+        # 显示模式 (性能 vs 时间进度)
         self.performance_mode = False
         
-        # 性能监控定时器（仅在性能模式下运行）
+        # 首个待办事项文本（由 MainWidget 更新）
+        self.first_todo_text: str = ""
+        
+        # 性能监控定时器
         self.performance_timer = QTimer(self)
         self.performance_timer.timeout.connect(self.update_performance_data)
         
+        # 应用初始尺寸
+        self._apply_metrics()
+        
+        # 监听主题切换
+        theme_manager.add_listener(self._on_theme_changed)
+
+    # ================================================================
+    # 尺寸管理
+    # ================================================================
+    
+    def _apply_metrics(self):
+        m = theme_manager.get_panel_metrics(self._panel_mode)
+        self.setFixedSize(m.panel_width, m.panel_height)
+        self.update()
+
+    def _resolve_metrics(self):
+        """供主题 paint_panel 查询当前尺寸指标"""
+        return theme_manager.get_panel_metrics(self._panel_mode)
+
+    @property
+    def panel_mode(self) -> str:
+        return self._panel_mode
+
+    def set_panel_mode(self, mode: str):
+        if mode == self._panel_mode:
+            return
+        self._panel_mode = mode
+        self._apply_metrics()
+        self.mode_changed.emit(mode)
+
+    def cycle_panel_mode(self):
+        order = ["normal", "compact", "mini"]
+        idx = order.index(self._panel_mode) if self._panel_mode in order else 0
+        next_mode = order[(idx + 1) % len(order)]
+        self.set_panel_mode(next_mode)
+
+    # ================================================================
+    # 待办事项接口
+    # ================================================================
+    
+    def set_first_todo_text(self, text: str):
+        """设置首个待办事项文本（用于现代主题的底部提醒）"""
+        if text != self.first_todo_text:
+            self.first_todo_text = text
+            self.update()
+
+    # ================================================================
+    # 主题响应
+    # ================================================================
+    
+    def _on_theme_changed(self, theme_name: str):
+        self._apply_metrics()
+
+    # ================================================================
+    # 绘制 —— 完全委托给主题
+    # ================================================================
+    
     def paintEvent(self, event):
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
-        
-        # 绘制背景
-        painter.setBrush(QColor(*get_color("performance_panel_background", [50, 50, 50, 200]))) # QColor(50, 50, 50, 200)
-        painter.setPen(Qt.NoPen)
-        painter.drawRoundedRect(0, 0, self.width(), self.height(), 15, 15)
-        
-        # 绘制阴影
-        painter.setBrush(QColor(*get_color("performance_panel_shadow", [0, 0, 0, 80]))) # QColor(0, 0, 0, 80)
-        painter.drawRoundedRect(3, 3, self.width()-6, self.height()-6, 15, 15)
-        
-        # 绘制时间
-        painter.setPen(QColor(*get_color("performance_panel_time", [200, 200, 200]))) # QColor(200, 200, 200)
-        font = QFont("Microsoft YaHei UI", 9)
-        painter.setFont(font)
-        time_str = datetime.now().strftime("%H:%M:%S")
-        painter.drawText(100, 15, time_str)
-        
-        if self.performance_mode:
-            # 绘制性能指标
-            self.draw_progress_ring(painter, 10, self.cpu_percent, "CPU", "CPU")
-            self.draw_progress_ring(painter, 70, self.memory_percent, "内存", "内存")
-            self.draw_progress_ring(painter, 130, self.disk_percent, "C盘", "C盘")
-            self.draw_progress_ring(painter, 190, self.battery_percent, "电池", "电池")
-        else:
-            # 绘制时间进度
-            day_text = datetime.now().strftime("%d日")
-            weekday_names = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
-            week_text = weekday_names[datetime.now().weekday()]
-            month_text = datetime.now().strftime("%m月")
-            year_text = datetime.now().strftime("%Y年")
-            
-            self.draw_progress_ring(painter, 10, self.day_progress, "Day", day_text)
-            self.draw_progress_ring(painter, 70, self.week_progress, "Week", week_text)
-            self.draw_progress_ring(painter, 130, self.month_progress, "Month", month_text)
-            self.draw_progress_ring(painter, 190, self.year_progress, "Year", year_text)
-            
-    def draw_progress_ring(self, painter, x, progress, title, value):
-        # 设置字体
-        title_font = QFont("Microsoft YaHei UI", 8, QFont.Bold)
-        value_font = QFont("Microsoft YaHei UI", 8, QFont.Bold)
-        
-        # 计算百分比文本
-        percentage = f"{round(progress * 100)}%"
-        
-        # 圆环参数
-        diameter = 50
-        y = 20
-        
-        # 绘制背景环
-        pen = QPen(QColor(*get_color("performance_panel_progress_ring_background", [70, 70, 70, 150]))) # QColor(70, 70, 70, 150)
-        pen.setWidth(2.5)
-        pen.setCapStyle(Qt.RoundCap)
-        painter.setPen(pen)
-        painter.drawEllipse(x, y, diameter, diameter)
-        
-        # 绘制进度弧
-        pen.setColor(QColor(*get_color("performance_panel_progress_ring_foreground", [200, 200, 200]))) # QColor(200, 200, 200)
-        painter.setPen(pen)
-        span_angle = int(360 * progress * 16)
-        painter.drawArc(x, y, diameter, diameter, 90 * 16, -span_angle)
-        
-        # 绘制标题文本
-        painter.setFont(title_font)
-        painter.setPen(QColor(*get_color("performance_panel_progress_title", [200, 200, 200]))) # QColor(200, 200, 200)
-        metrics = painter.fontMetrics()
-        title_width = metrics.horizontalAdvance(value)
-        painter.drawText(x + (diameter - title_width) // 2, y + diameter + 14, value)
-        
-        # 绘制数值文本
-        painter.setFont(value_font)
-        painter.setPen(QColor(*get_color("performance_panel_progress_text", [200, 200, 200]))) # QColor(200, 200, 200)
-        metrics = painter.fontMetrics()
-        value_width = metrics.horizontalAdvance(percentage)
-        painter.drawText(x + (diameter - value_width) // 2, y + diameter // 2 + 5, percentage)
-        
+        try:
+            painter.setRenderHint(QPainter.Antialiasing)
+            theme_manager.current_theme.paint_panel(painter, self)
+        finally:
+            painter.end()  # 确保 painter 正确关闭，防止 QBackingStore 报错
+
+    # ================================================================
+    # 模式切换
+    # ================================================================
+    
     def toggle_mode(self):
         self.performance_mode = not self.performance_mode
-        
         if self.performance_mode:
             self.performance_timer.start(1000)
         else:
             self.performance_timer.stop()
-            
         self.update()
         
+    # ================================================================
+    # 数据更新
+    # ================================================================
+    
     def update_performance_data(self):
-        """仅在性能模式下更新性能数据"""
         if self.performance_mode:
             self.cpu_percent = PerformanceMonitor.get_cpu_percent()
             self.memory_percent = PerformanceMonitor.get_memory_percent()
@@ -129,8 +137,8 @@ class PerformancePanel(QWidget):
             self.update()
             
     def update_time_data(self):
-        """更新时间数据（始终运行）"""
         self.day_progress = PerformanceMonitor.get_day_progress()
         self.week_progress = PerformanceMonitor.get_week_progress()
         self.month_progress = PerformanceMonitor.get_month_progress()
+        self.year_progress = PerformanceMonitor.get_year_progress()
         self.year_progress = PerformanceMonitor.get_year_progress()

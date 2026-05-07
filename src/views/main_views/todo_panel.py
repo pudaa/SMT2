@@ -38,7 +38,9 @@ class TodoItemWidget(QWidget): # 单个待办事项组件
     def __init__(self, text="", parent=None):
         super().__init__(parent)
         self.content_text = text
-        self.setFixedHeight(32)
+        from src.themes import theme_manager
+        m = theme_manager.get_panel_metrics("normal")
+        self.setFixedHeight(m.todo_item_height)
         self.setStyleSheet(f"""
             QToolTip {{
                 color: {get_qss_color("todo_panel_todoitem_foreground", "#ccc")};
@@ -46,7 +48,7 @@ class TodoItemWidget(QWidget): # 单个待办事项组件
                 border: none;
                 border-radius: 6px;
                 padding: 4px 8px;
-                font-size: 12px;
+                font-size: {m.todo_font_size}px;
                 white-space: pre-wrap; 
             }}  
             background-color: transparent;
@@ -57,11 +59,13 @@ class TodoItemWidget(QWidget): # 单个待办事项组件
         self._font_metrics = None
         self._cached_tooltip = None
         self._last_tooltip_text = None
+        self._last_width = 0  # 防抖：上次宽度
         
         # 拖动相关属性
         self.drag_start_global_y = 0
         self.is_dragging = False
         
+        cs = m.todo_checkbox_size
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 2, 0, 2)
         layout.setSpacing(5)
@@ -72,8 +76,8 @@ class TodoItemWidget(QWidget): # 单个待办事项组件
                 spacing: 5px;
             }}
             QCheckBox::indicator {{
-                width: 18px;
-                height: 18px;
+                width: {cs}px;
+                height: {cs}px;
             }}
             QCheckBox::indicator:unchecked {{
                 border: 2px solid {get_qss_color("todo_panel_todoitem_checkbox_unchecked_border", "#888")};
@@ -93,7 +97,7 @@ class TodoItemWidget(QWidget): # 单个待办事项组件
                 background-color: transparent;
                 border: none;
                 color: {get_qss_color("todo_panel_todoitem_lineedit_foreground", "#ccc")};
-                font-size: 12px;
+                font-size: {m.todo_font_size}px;
                 padding: 4px;
             }}
             QLineEdit:focus {{
@@ -104,7 +108,10 @@ class TodoItemWidget(QWidget): # 单个待办事项组件
         self.handle_text_show()
         
         self.drag_label = QLabel("  ☰  ")
-        self.drag_label.setStyleSheet(f"color: {get_qss_color("todo_panel_todoitem_draglabel", "#888")}; font-size: 14px; font-weight: bold;")
+        self.drag_label.setStyleSheet(
+            f"color: {get_qss_color('todo_panel_todoitem_draglabel', '#888')}; "
+            f"font-size: {m.todo_drag_font_size}px; font-weight: bold;"
+        )
         self.drag_label.setCursor(Qt.PointingHandCursor)
         
         layout.addWidget(self.checkbox)
@@ -121,6 +128,14 @@ class TodoItemWidget(QWidget): # 单个待办事项组件
         # 删除动画相关属性
         self.deletion_animation = None
         self.original_height = 32
+
+    def resizeEvent(self, event):
+        """宽度变化时重新计算文本截断（防抖：仅宽度实质变化时触发）"""
+        super().resizeEvent(event)
+        w = self.width()
+        if w != self._last_width and w > 0:
+            self._last_width = w
+            QTimer.singleShot(0, self.handle_text_show)
 
     def get_text(self):
         return self.text_field.text()
@@ -162,17 +177,19 @@ class TodoItemWidget(QWidget): # 单个待办事项组件
         self.setToolTip(self._cached_tooltip)
             
     def handle_text_show(self):
-        """处理文本显示，带缓存优化"""
+        """处理文本显示，动态计算可用宽度"""
         text = self.content_text
         
         # 缓存字体度量对象
         if self._font_metrics is None:
             self._font_metrics = QFontMetrics(self.text_field.font())
-            
-        max_width = 130
+        
+        # 动态计算可用宽度：widget总宽 - checkbox(23) - drag_label(~28) - spacing
+        available = self.width() - 55 if self.width() > 80 else 100
+        max_width = max(available, 60)
         
         if self._font_metrics.horizontalAdvance(text) > max_width:
-            elided_text = self._font_metrics.elidedText(text, Qt.ElideRight, max_width) # 缩略显示
+            elided_text = self._font_metrics.elidedText(text, Qt.ElideRight, max_width)
             self.text_field.setText(elided_text)
         else:
             self.text_field.setText(text)
@@ -201,30 +218,23 @@ class TodoItemWidget(QWidget): # 单个待办事项组件
         QLineEdit.mouseDoubleClickEvent(self.text_field, event)
         
     def on_checkbox_clicked(self):
-        """复选框状态改变时的处理，优化样式更新"""
+        """复选框状态改变时的处理，使用缓存样式"""
+        from src.themes import theme_manager
+        m = theme_manager.get_panel_metrics("normal")
+        fs = m.todo_font_size
         if self.checkbox.isChecked():
-            self.text_field.setStyleSheet(f"""
-                QLineEdit {{
-                    background-color: transparent;
-                    border: none;
-                    color: {get_qss_color("todo_panel_todoitem_lineedit_finished", "#888")};
-                    font-size: 12px;
-                    padding: 4px;
-                    text-decoration: line-through;
-                }}
-            """)
+            ss = (
+                f"QLineEdit {{ background-color: transparent; border: none; "
+                f"color: {get_qss_color('todo_panel_todoitem_lineedit_finished', '#888')}; "
+                f"font-size: {fs}px; padding: 4px; text-decoration: line-through; }}"
+            )
         else:
-            self.text_field.setStyleSheet(f"""
-                QLineEdit {{
-                    background-color: transparent;
-                    border: none;
-                    color: {get_qss_color("todo_panel_todoitem_lineedit_foreground", "#ccc")};
-                    font-size: 12px;
-                    padding: 4px;
-                    text-decoration: none;
-                }}
-            """)
-        # 标记需要重新计算标签
+            ss = (
+                f"QLineEdit {{ background-color: transparent; border: none; "
+                f"color: {get_qss_color('todo_panel_todoitem_lineedit_foreground', '#ccc')}; "
+                f"font-size: {fs}px; padding: 4px; text-decoration: none; }}"
+            )
+        self.text_field.setStyleSheet(ss)
         self._cached_tags = None
         
     def mousePressEvent(self, event: QMouseEvent):
@@ -332,6 +342,9 @@ class TagScrollArea(QScrollArea):
 
 
 class TodoPanel(QWidget):
+    # 待办列表变化信号（排序/增删），供 MainWidget 监听以同步到 performance_panel
+    todos_changed = Signal()
+    
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setVisible(False)
@@ -339,8 +352,12 @@ class TodoPanel(QWidget):
         self.selected_tags = set()  # 存储选中的标签
         self.tag_refresh_in_progress = False  # 标签刷新进行中标志
         
+        from src.themes import theme_manager
+        m = theme_manager.get_panel_metrics("normal")
+        br = m.todo_border_radius
+        
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 10, 0, 0) # 设置外边距
+        layout.setContentsMargins(0, 6, 0, 0)
         layout.setSpacing(0)
         
         # 标题
@@ -350,11 +367,11 @@ class TodoPanel(QWidget):
             QLabel {{
                 color: {get_qss_color("todo_panel_titlelabel_foreground", "#ccc")};
                 background-color: {get_qss_color("todo_panel_titlelabel_background", [50, 50, 50, 200])};
-                font-size: 15px;
+                font-size: {m.todo_title_font_size}px;
                 font-weight: bold;
                 padding: 5px;
-                border-top-left-radius: 20px;
-                border-top-right-radius: 20px;
+                border-top-left-radius: {br}px;
+                border-top-right-radius: {br}px;
             }}
         """)
         layout.addWidget(title_label)
@@ -377,24 +394,25 @@ class TodoPanel(QWidget):
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.scroll_area.setStyleSheet(f"""
             QScrollArea {{
                 border: none;
                 padding-top: 0px;
-                padding-right: 10px;
-                padding-bottom: 10px;
-                padding-left: 10px;
+                padding-right: 6px;
+                padding-bottom: 6px;
+                padding-left: 6px;
                 background-color: {get_qss_color("todo_panel_scrollarea_background", [50, 50, 50, 200])};
-                border-bottom-left-radius: 20px;
-                border-bottom-right-radius: 20px;
+                border-bottom-left-radius: {br}px;
+                border-bottom-right-radius: {br}px;
             }}
             QScrollBar:vertical {{
-                width: 5px;
+                width: 0px;
                 background-color: transparent;
             }}
             QScrollBar::handle:vertical {{
-                background-color: {get_qss_color("todo_panel_scrollbar_background", "#555")};
-                border-radius: 4px;
+                background-color: transparent;
+                border-radius: 0px;
             }}
         """)
         
@@ -402,7 +420,7 @@ class TodoPanel(QWidget):
         self.todo_container = QWidget()
         self.todo_container.setStyleSheet("background-color: transparent;")
         self.todo_layout = QVBoxLayout(self.todo_container)
-        self.todo_layout.setContentsMargins(5, 5, 5, 5)
+        self.todo_layout.setContentsMargins(3, 3, 3, 3)
         self.todo_layout.setSpacing(2)
         self.todo_layout.addStretch()
         self.is_dragging = False
@@ -471,6 +489,7 @@ class TodoPanel(QWidget):
         if index > 0:
             self.todo_layout.removeWidget(item)
             self.todo_layout.insertWidget(index - 1, item)
+            self.todos_changed.emit()
             
     def move_item_down(self, item):
         """向下移动项目"""
@@ -479,6 +498,7 @@ class TodoPanel(QWidget):
         if index < self.todo_layout.count() - 2:
             self.todo_layout.removeWidget(item)
             self.todo_layout.insertWidget(index + 1, item)
+            self.todos_changed.emit()
         
     def refresh_tags(self):
         """异步刷新标签按钮，优化性能"""
@@ -526,10 +546,7 @@ class TodoPanel(QWidget):
                 widget.deleteLater()
         
         self.all_tags = set()
-        if len(self.all_tags) == 0:
-            self.tag_scroll_area.setMaximumHeight(0)
-            self.tag_scroll_area.setMinimumHeight(0)
-            self.tag_scroll_area.setVisible(False)
+        self.tag_scroll_area.setVisible(False)
     
     def on_tags_refreshed(self, all_tags):
         """标签刷新完成后的处理，优化按钮重用"""
@@ -580,21 +597,24 @@ class TodoPanel(QWidget):
             self.tag_scroll_area.setMinimumHeight(30)
             self.tag_scroll_area.setVisible(True)
         else:
-            self.tag_scroll_area.setMaximumHeight(0)
-            self.tag_scroll_area.setMinimumHeight(0)
+            self.tag_scroll_area.setVisible(False)
             self.tag_scroll_area.setVisible(False)
     
     
     def _create_tag_button(self, tag):
         """创建标签按钮，提取公共逻辑"""
+        from src.themes import theme_manager
+        m = theme_manager.get_panel_metrics("normal")
+        
         tag_button = QToolButton()
         tag_button.setText(tag)
         tag_button.setCheckable(True)
         tag_button.setChecked(tag in self.selected_tags)
         
-        # 设置固定字体
+        # 设置固定字体（保护：点大小必须 > 0）
         font = tag_button.font()
-        font.setPointSize(11)
+        if m.todo_tag_font_size > 0:
+            font.setPointSize(m.todo_tag_font_size)
         font.setFamily("Microsoft YaHei UI")
         tag_button.setFont(font)
         
@@ -606,7 +626,7 @@ class TodoPanel(QWidget):
                 border: none;
                 border-radius: 10px;
                 padding: 3px 8px;
-                font-size: 11px;
+                font-size: {m.todo_tag_font_size}px;
                 font-family: "Microsoft YaHei";
             }}
             QToolButton:checked {{
@@ -747,6 +767,7 @@ class TodoPanel(QWidget):
         # 保存并刷新
         self.save_todos()
         self.refresh_tags()
+        self.todos_changed.emit()
             
     def slide_bottom(self):
         # 划到待办事项底部

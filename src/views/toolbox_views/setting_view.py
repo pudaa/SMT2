@@ -2,7 +2,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QScrollArea, QGroupBox, QFormLayout, 
     QLineEdit, QPushButton, QHBoxLayout, QLabel, QComboBox, 
     QCheckBox, QColorDialog, QFrame, QSizePolicy, QToolButton, QSpacerItem,
-    QSpinBox
+    QSpinBox, QDialog, QDialogButtonBox, QMessageBox
 )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor
@@ -10,6 +10,9 @@ import json
 import os
 from src.configs.defaul_config import defaul_config
 from src.utils.auto_start_manager import AutoStartManager
+from src.themes import theme_manager
+from src.themes.base_theme import CustomTheme
+from src.configs.base_config import get_default_theme, set_default_theme
 
 class SettingView(QScrollArea):
     # 信号，当配置更改时发出
@@ -130,6 +133,9 @@ class SettingView(QScrollArea):
     
     def create_cards(self):
         """创建配置卡片"""
+        # ---- 主题配置（独立卡片，始终在最前） ----
+        self.create_theme_group()
+        
         group_names = {
             "colors": "颜色设置",
             "todo_file_name": "待办事项路径",
@@ -139,7 +145,9 @@ class SettingView(QScrollArea):
             "auto_start": "开机自启"
         }
         for key, value in self.config_data.items():
-            # print(f"key: {key}, value: {value}, type: {type(value)}")
+            # default_theme 已在 create_theme_group 中处理
+            if key == "default_theme":
+                continue
             if key == "colors":
                 self.create_colors_group(value)
             elif isinstance(value, bool) or str(value) in ['true', 'false']:
@@ -385,6 +393,309 @@ class SettingView(QScrollArea):
             layout.addLayout(color_layout)
         
         self.main_layout.addWidget(group)
+
+    # ================================================================
+    # 主题配置卡片
+    # ================================================================
+    
+    def create_theme_group(self):
+        """创建主题选择与自定义编辑卡片"""
+        group = QGroupBox("主题设置")
+        layout = QVBoxLayout(group)
+        
+        # ---- 行1: 主题选择 + 操作按钮 ----
+        row1 = QHBoxLayout()
+        
+        row1.addWidget(QLabel("当前主题:"))
+        
+        self.theme_combo = QComboBox()
+        self._refresh_theme_combo()
+        self.theme_combo.currentIndexChanged.connect(self._on_theme_combo_changed)
+        row1.addWidget(self.theme_combo)
+        
+        # 新建自定义主题按钮
+        new_btn = QPushButton("+ 新建自定义主题")
+        new_btn.setMaximumWidth(140)
+        new_btn.clicked.connect(self._create_custom_theme_dialog)
+        row1.addWidget(new_btn)
+        
+        row1.addStretch()
+        layout.addLayout(row1)
+        
+        # ---- 行2: 记住主题选择 ----
+        self.remember_theme_cb = QCheckBox("记住主题选择（启动时自动恢复）")
+        saved_theme = get_default_theme()
+        self.remember_theme_cb.setChecked(saved_theme == theme_manager.current_theme_name)
+        self.remember_theme_cb.stateChanged.connect(self._on_remember_theme_changed)
+        layout.addWidget(self.remember_theme_cb)
+        
+        # ---- 自定义主题编辑区（初始隐藏） ----
+        self.custom_editor_container = QWidget()
+        self.custom_editor_container.setVisible(False)
+        editor_layout = QVBoxLayout(self.custom_editor_container)
+        editor_layout.setContentsMargins(8, 8, 8, 8)
+        
+        # 标签信息
+        self.custom_theme_name_label = QLabel()
+        self.custom_theme_name_label.setStyleSheet("font-weight: bold; font-size: 13px;")
+        editor_layout.addWidget(self.custom_theme_name_label)
+        
+        # 颜色编辑区域（滚动）
+        self.custom_color_layout = QVBoxLayout()
+        editor_layout.addLayout(self.custom_color_layout)
+        
+        # 操作按钮行
+        btn_row = QHBoxLayout()
+        save_btn = QPushButton("💾 保存主题")
+        save_btn.clicked.connect(self._save_custom_theme)
+        btn_row.addWidget(save_btn)
+        
+        delete_btn = QPushButton("🗑 删除主题")
+        delete_btn.setStyleSheet("color: #e05555;")
+        delete_btn.clicked.connect(self._delete_custom_theme)
+        btn_row.addWidget(delete_btn)
+        
+        btn_row.addStretch()
+        editor_layout.addLayout(btn_row)
+        
+        layout.addWidget(self.custom_editor_container)
+        
+        # 存储当前正在编辑的自定义主题引用
+        self._editing_custom_theme: CustomTheme | None = None
+        
+        self.main_layout.addWidget(group)
+    
+    def _refresh_theme_combo(self):
+        """刷新主题下拉框选项"""
+        self.theme_combo.blockSignals(True)
+        self.theme_combo.clear()
+        for t in theme_manager.available_themes:
+            label = f"{t['display']} {'(自定义)' if t['is_custom'] else '(内置)'}"
+            self.theme_combo.addItem(label, t["name"])
+        # 选中当前主题
+        idx = self.theme_combo.findData(theme_manager.current_theme_name)
+        if idx >= 0:
+            self.theme_combo.setCurrentIndex(idx)
+        self.theme_combo.blockSignals(False)
+    
+    def _on_theme_combo_changed(self, index: int):
+        """主题下拉框选择变化"""
+        theme_name = self.theme_combo.itemData(index)
+        if not theme_name:
+            return
+        
+        theme_manager.set_theme(theme_name)
+        self.changes_made.emit()
+        
+        # ★ 如果"记住主题"已勾选，切换后自动保存为新默认
+        if self.remember_theme_cb.isChecked():
+            set_default_theme(theme_name)
+        
+        # 判断是否为自定义主题，显示/隐藏编辑器
+        ct = theme_manager.get_custom_theme(theme_name)
+        if ct:
+            self._show_custom_editor(ct)
+        else:
+            self.custom_editor_container.setVisible(False)
+            self._editing_custom_theme = None
+    
+    def _on_remember_theme_changed(self, state: int):
+        """记住主题复选框变化"""
+        if state == Qt.Checked:
+            set_default_theme(theme_manager.current_theme_name)
+        else:
+            set_default_theme("classical")
+    
+    def _show_custom_editor(self, ct: CustomTheme):
+        """显示自定义主题颜色编辑器"""
+        self._editing_custom_theme = ct
+        self.custom_editor_container.setVisible(True)
+        self.custom_theme_name_label.setText(f"编辑: {ct.display_name}")
+        
+        # 清空并重建颜色行
+        for i in reversed(range(self.custom_color_layout.count())):
+            w = self.custom_color_layout.itemAt(i).widget()
+            if w:
+                w.deleteLater()
+        
+        for token, color_val in ct._colors.items():
+            self._add_color_edit_row(token, color_val)
+    
+    def _add_color_edit_row(self, token: str, color_val: list[int]):
+        """添加一行颜色编辑器"""
+        row = QHBoxLayout()
+        
+        label = QLabel(token.replace('_', ' '))
+        label.setMinimumWidth(180)
+        row.addWidget(label)
+        
+        row.addStretch()
+        
+        color_btn = QPushButton()
+        color_btn.setFixedSize(36, 36)
+        color_btn.setCursor(Qt.PointingHandCursor)
+        qc = self._list_to_qcolor(color_val)
+        self._style_color_btn(color_btn, qc)
+        
+        # 存储附加数据
+        color_btn._token = token
+        color_btn._qcolor = qc
+        color_btn._alpha_spin = None
+        color_btn.clicked.connect(lambda _, cb=color_btn: self._pick_custom_color(cb))
+        
+        row.addWidget(color_btn)
+        
+        # Alpha 微调
+        alpha_spin = QSpinBox()
+        alpha_spin.setRange(0, 255)
+        alpha_spin.setValue(qc.alpha())
+        alpha_spin.setFixedWidth(56)
+        alpha_spin.setPrefix("α ")
+        alpha_spin.valueChanged.connect(lambda v, cb=color_btn: self._update_custom_alpha(cb, v))
+        color_btn._alpha_spin = alpha_spin
+        row.addWidget(alpha_spin)
+        
+        self.custom_color_layout.addLayout(row)
+    
+    def _pick_custom_color(self, color_btn: QPushButton):
+        """打开颜色选择器"""
+        qc = color_btn._qcolor
+        color = QColorDialog.getColor(qc, self, "选择颜色", QColorDialog.ShowAlphaChannel)
+        if color.isValid():
+            color_btn._qcolor = QColor(color.red(), color.green(), color.blue(), color.alpha())
+            self._style_color_btn(color_btn, color_btn._qcolor)
+            if color_btn._alpha_spin:
+                color_btn._alpha_spin.blockSignals(True)
+                color_btn._alpha_spin.setValue(color.alpha())
+                color_btn._alpha_spin.blockSignals(False)
+            self._mark_custom_dirty()
+    
+    def _update_custom_alpha(self, color_btn: QPushButton, alpha: int):
+        """更新自定义颜色alpha值"""
+        qc = color_btn._qcolor
+        color_btn._qcolor = QColor(qc.red(), qc.green(), qc.blue(), alpha)
+        self._style_color_btn(color_btn, color_btn._qcolor)
+        self._mark_custom_dirty()
+    
+    def _style_color_btn(self, btn: QPushButton, qc: QColor):
+        """设置颜色按钮的样式"""
+        hex_name = qc.name()
+        text_color = 'white' if qc.lightness() < 128 else 'black'
+        btn.setStyleSheet(
+            f"background-color: {hex_name}; "
+            f"border: 1px solid #888; border-radius: 6px; "
+            f"min-width: 36px; min-height: 36px;"
+        )
+    
+    def _mark_custom_dirty(self):
+        """标记自定义主题已修改"""
+        if self._editing_custom_theme and self.custom_editor_container.isVisible():
+            self.changes_made.emit()
+    
+    def _save_custom_theme(self):
+        """保存当前编辑的自定义主题"""
+        ct = self._editing_custom_theme
+        if not ct:
+            return
+        
+        # 从 UI 控件收集颜色
+        new_colors = {}
+        for i in range(self.custom_color_layout.count()):
+            item = self.custom_color_layout.itemAt(i)
+            if item.layout():
+                h_layout = item.layout()
+                if h_layout.count() >= 3:
+                    color_btn = h_layout.itemAt(1).widget()
+                    if isinstance(color_btn, QPushButton) and hasattr(color_btn, '_token'):
+                        qc = color_btn._qcolor
+                        new_colors[color_btn._token] = [qc.red(), qc.green(), qc.blue(), qc.alpha()]
+        
+        ct._colors = new_colors
+        theme_manager.add_custom_theme(ct)
+        theme_manager.set_theme(ct.name)
+        self._refresh_theme_combo()
+    
+    def _delete_custom_theme(self):
+        """删除当前自定义主题"""
+        ct = self._editing_custom_theme
+        if not ct:
+            return
+        reply = QMessageBox.question(
+            self, "确认删除", f"确定要删除自定义主题「{ct.display_name}」吗？",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No
+        )
+        if reply == QMessageBox.Yes:
+            theme_manager.remove_custom_theme(ct.name)
+            self._editing_custom_theme = None
+            self.custom_editor_container.setVisible(False)
+            self._refresh_theme_combo()
+    
+    def _create_custom_theme_dialog(self):
+        """弹出新建自定义主题对话框"""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("新建自定义主题")
+        dialog.setMinimumWidth(360)
+        layout = QVBoxLayout(dialog)
+        
+        # 名称
+        layout.addWidget(QLabel("主题名称:"))
+        name_edit = QLineEdit()
+        name_edit.setPlaceholderText("例如：我的暗夜主题")
+        layout.addWidget(name_edit)
+        
+        # 基于哪个主题
+        layout.addWidget(QLabel("基于哪个主题的布局:"))
+        base_combo = QComboBox()
+        for t in theme_manager.available_themes:
+            if not t["is_custom"]:
+                base_combo.addItem(t["display"], t["name"])
+        layout.addWidget(base_combo)
+        
+        # 按钮
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+        
+        if dialog.exec() == QDialog.Accepted:
+            name = name_edit.text().strip()
+            if not name:
+                return
+            # 生成唯一 key
+            import re
+            key = re.sub(r'[^a-zA-Z\u4e00-\u9fff0-9_-]', '_', name).lower()
+            if not key:
+                key = f"custom_{len(theme_manager.get_all_custom_themes()) + 1}"
+            
+            # 基于选定主题复制颜色
+            based_on = base_combo.currentData()
+            source_colors = {}
+            if based_on:
+                theme_manager.set_theme(based_on)
+                source_colors = theme_manager.get_all_colors()
+            
+            ct = CustomTheme(
+                theme_name=key,
+                display_name=name,
+                colors=source_colors,
+                based_on=based_on or "classical",
+            )
+            theme_manager.add_custom_theme(ct)
+            theme_manager.set_theme(key)
+            self._refresh_theme_combo()
+            self._show_custom_editor(ct)
+    
+    @staticmethod
+    def _list_to_qcolor(color_val: list[int]) -> QColor:
+        if len(color_val) >= 4:
+            return QColor(color_val[0], color_val[1], color_val[2], color_val[3])
+        elif len(color_val) >= 3:
+            return QColor(color_val[0], color_val[1], color_val[2])
+        return QColor(200, 200, 200)
+
+    # ================================================================
+    # 原有颜色设置方法
+    # ================================================================
 
     def update_alpha(self, color_key, color_btn, alpha_spinbox, value):
         """更新alpha值"""

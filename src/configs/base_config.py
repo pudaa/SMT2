@@ -1,6 +1,7 @@
 import json
 import os
 from src.configs.defaul_config import *
+from src.themes import theme_manager
 
 # 全局配置变量
 _properties = {}
@@ -47,8 +48,31 @@ def get_font() -> str:
     return _properties.get("font", "Microsoft YaHei UI")
 
 
+# 获取默认主题
+def get_default_theme() -> str:
+    _load_properties()
+    return _properties.get("default_theme", "classical")
+
+
+# 保存默认主题
+def set_default_theme(theme_name: str):
+    _load_properties()
+    _properties["default_theme"] = theme_name
+    with open(_properties_file, 'w', encoding='utf-8') as f:
+        json.dump(_properties, f, ensure_ascii=False, indent=4)
+
+
 # 获取颜色配置
+# 优先使用主题系统的颜色，若主题中没有则回退到 properties.json
 def get_color(key: str, default: str|list[int]) -> str|list[int]:
+    # 1. 尝试从主题管理器获取
+    try:
+        theme_color = theme_manager.get_color(key)
+        if theme_color:
+            return theme_color
+    except Exception:
+        pass
+    # 2. 回退到 properties.json
     _load_properties()
     colors = _properties.get("colors", {})
     return colors.get(key, default)

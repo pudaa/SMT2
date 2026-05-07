@@ -7,10 +7,17 @@ from PySide6.QtCore import Qt, QTimer
 from src.views.main_views.main_widget import MainWidget
 from src.tray.system_tray import SystemTrayIcon
 from src.utils.auto_start_manager import AutoStartManager
+from src.configs.base_config import get_default_theme
+from src.themes import theme_manager
 
 def main():
     QApplication.setHighDpiScaleFactorRoundingPolicy(
         Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
+    
+    # 应用默认主题（在创建窗口之前）
+    default_theme = get_default_theme()
+    theme_manager.set_theme(default_theme)
+    print(f"默认主题: {default_theme}")
     
     app = QApplication(sys.argv)
     widget = MainWidget()

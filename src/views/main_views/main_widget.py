@@ -4,6 +4,7 @@ from PySide6.QtCore import  QTimer, Qt, QPoint, QPropertyAnimation, QEasingCurve
 from src.views.main_views.performance_panel import PerformancePanel
 from src.views.main_views.todo_panel import TodoPanel, TodoItemWidget
 from src.utils.performance_monitor import PerformanceMonitor
+from src.themes import theme_manager
 import sys
 import ctypes
 
@@ -12,7 +13,6 @@ class MainWidget(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("SMT2") 
-        self.setFixedSize(250, 90)
         self.setWindowFlags(self.windowFlags() | Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint  | Qt.WindowType.WindowStaysOnTopHint)
         self.setAttribute(Qt.WA_TranslucentBackground)
         
@@ -31,11 +31,23 @@ class MainWidget(QWidget):
         main_layout.addWidget(self.todo_panel)
         self.todo_panel.setVisible(False)
         
+        # 待办变化时同步到性能面板
+        self.todo_panel.todos_changed.connect(self._sync_first_todo)
+        
+        # 初始化窗口尺寸
+        self._update_window_size()
+        
+        # 监听性能面板模式变化
+        self.performance_panel.mode_changed.connect(self._on_panel_mode_changed)
+        
+        # 监听主题切换
+        theme_manager.add_listener(self._on_theme_changed)
+        
         # 鼠标拖动相关
         self.drag_position = QPoint()
         
         # 吸附相关
-        self.snap_margin = 8  # 吸附阈值（像素）- 减小阈值，只在很靠近边缘时吸附
+        self.snap_margin = 8  # 吸附阈值（像素）
         self.embed_offset = 1  # 嵌入偏移量（像素），防止遮挡
         self.is_snapped = False
         self.last_snap_region = None  # 记录最后吸附的区域
@@ -47,7 +59,6 @@ class MainWidget(QWidget):
         self.pos_animation = QPropertyAnimation(self, b"pos")
         self.pos_animation.setDuration(200)
         self.pos_animation.setEasingCurve(QEasingCurve.OutCubic)
-        
         
         # 定时器更新时间数据
         self.timer = QTimer(self)
@@ -61,6 +72,23 @@ class MainWidget(QWidget):
         
         # 更新初始数据
         self.update_time_data()
+
+    # ---- 窗口尺寸适配 ----
+    
+    def _update_window_size(self):
+        """根据性能面板当前尺寸重新设置窗口尺寸"""
+        pw = self.performance_panel.width()
+        ph = self.performance_panel.height()
+        todo_h = self.todo_panel.height() if self.todo_panel.isVisible() else 0
+        self.setFixedSize(pw, ph + todo_h)
+
+    def _on_panel_mode_changed(self, mode: str):
+        """性能面板模式变化时调整窗口大小"""
+        self._update_window_size()
+
+    def _on_theme_changed(self, theme_name: str):
+        """主题切换时调整窗口大小"""
+        self._update_window_size()
     
     def showEvent(self, event: QShowEvent):
         super().showEvent(event)
@@ -82,7 +110,8 @@ class MainWidget(QWidget):
         
     def set_todo_height(self, height):
         self.todo_panel.setFixedHeight(height)
-        self.setFixedHeight(90 + height)
+        # 使用性能面板的实际高度，而非硬编码 90
+        self.setFixedHeight(self.performance_panel.height() + height)
         
     todo_height = Property(int, get_todo_height, set_todo_height) #  待办面板高度
         
@@ -90,9 +119,12 @@ class MainWidget(QWidget):
         if event.button() == Qt.LeftButton:
             self.break_snap()
             self.drag_position = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
-            event.accept() # 处理鼠标按下事件
+            event.accept()
         elif event.button() == Qt.RightButton:
             self.toggle_todo_panel()
+        elif event.button() == Qt.MiddleButton:
+            # 中键切换面板紧凑模式
+            self.performance_panel.cycle_panel_mode()
             
     def mouseMoveEvent(self, event: QMouseEvent):
         if event.buttons() == Qt.LeftButton and self.performance_panel.geometry().contains(event.pos()):
@@ -129,13 +161,16 @@ class MainWidget(QWidget):
             self.animation.finished.connect(self.hide_todo_panel)
             
         self.animation.start()
+        self._update_window_size()
         
         # 更新待办列表
         if self.todo_panel.todo_visible:
             self.todo_panel.update_todo_list()
+        self._sync_first_todo()
             
     def hide_todo_panel(self):
         self.todo_panel.setVisible(False)
+        self._update_window_size()
         try:
             self.animation.finished.disconnect(self.hide_todo_panel)
         except RuntimeError:
@@ -145,9 +180,29 @@ class MainWidget(QWidget):
         self.performance_panel.update_time_data()
         if not self.performance_panel.performance_mode:
             self.performance_panel.update()
+        self._sync_first_todo()
         
     def toggle_mode(self):
         self.performance_panel.toggle_mode()
+        
+    def _sync_first_todo(self):
+        """将首个未完成的待办事项文本同步到性能面板（按布局顺序）"""
+        first_text = ""
+        layout = self.todo_panel.todo_layout
+        # 按布局顺序遍历（这才是视觉顺序）
+        for i in range(layout.count()):
+            widget = layout.itemAt(i).widget()
+            if hasattr(widget, 'content_text') and widget.content_text.strip():
+                if not widget.is_completed():
+                    first_text = widget.content_text.strip()
+                    break
+        if not first_text:
+            for i in range(layout.count()):
+                widget = layout.itemAt(i).widget()
+                if hasattr(widget, 'content_text') and widget.content_text.strip():
+                    first_text = widget.content_text.strip()
+                    break
+        self.performance_panel.set_first_todo_text(first_text)
         
     
     def moveEvent(self, event: QMoveEvent):

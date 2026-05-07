@@ -49,6 +49,14 @@ class SystemTrayIcon(QSystemTrayIcon):
         
         self.menu.addSeparator()
         
+        # ---- 主题切换 ----
+        self.theme_menu = QMenu("切换主题")
+        self._theme_actions = []
+        self._build_theme_menu()
+        self.menu.addMenu(self.theme_menu)
+        
+        self.menu.addSeparator()
+        
         # 工具箱
         self.tools_action = QAction("工具箱", None)
         self.tools_action.triggered.connect(self.open_toolbox)
@@ -91,6 +99,41 @@ class SystemTrayIcon(QSystemTrayIcon):
                 self.performance_action.setChecked(widget.performance_panel.performance_mode)
             elif hasattr(widget, 'main_widget'):
                 self.performance_action.setChecked(widget.main_widget.performance_panel.performance_mode)
+    
+    def _build_theme_menu(self):
+        """动态构建主题切换菜单（含自定义主题）"""
+        from src.themes import theme_manager
+        
+        self._theme_actions.clear()
+        self.theme_menu.clear()
+        
+        for theme_info in theme_manager.available_themes:
+            name = theme_info["name"]
+            display = theme_info["display"]
+            is_custom = theme_info.get("is_custom", False)
+            label = f"{display} *" if is_custom else display
+            action = QAction(label, self.theme_menu)
+            action.setCheckable(True)
+            action.setChecked(name == theme_manager.current_theme_name)
+            action.triggered.connect(lambda checked, t=name: self._switch_theme(t))
+            self.theme_menu.addAction(action)
+            self._theme_actions.append(action)
+    
+    def _switch_theme(self, theme_name: str):
+        """切换主题并刷新菜单勾选状态"""
+        from src.themes import theme_manager
+        if theme_manager.set_theme(theme_name):
+            # 刷新菜单勾选
+            for action, info in zip(self._theme_actions, theme_manager.available_themes):
+                action.setChecked(info["name"] == theme_manager.current_theme_name)
+            # 刷新整个应用样式
+            app = QApplication.instance()
+            if app:
+                ss = theme_manager.get_stylesheet()
+                if ss:
+                    app.setStyleSheet(ss)
+                else:
+                    app.setStyleSheet("")
     
     def update_win_pin_menu(self):
         # 清除现有动作

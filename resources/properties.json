@@ -150,5 +150,6 @@
             85
         ]
     },
+    "default_theme": "modern",
     "auto_start": true
 }

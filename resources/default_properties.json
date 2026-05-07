@@ -5,6 +5,7 @@
         "n",
         "eng"
     ],
+    "default_theme": "classical",
     "font": "Microsoft YaHei UI",
     "colors": {
         "performance_panel_background": [

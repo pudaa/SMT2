@@ -11,6 +11,7 @@ class defaul_config():
                 "eng"
             ],
             "font": "Microsoft YaHei UI",
+            "default_theme": "classical",
             "colors": {
                 "performance_panel_background": [
                     50,
