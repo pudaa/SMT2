@@ -3,7 +3,7 @@ from __future__ import annotations
 from PySide6.QtGui import QColor, QFont, QPen, QPainter
 from PySide6.QtCore import Qt
 from datetime import datetime
-from src.themes.base_theme import ThemeDefinition, PanelMetrics, PanelCompactMetrics
+from src.themes.base_theme import ThemeDefinition, PanelMetrics, PanelCompactMetrics, PanelMiniMetrics
 
 
 class ModernTheme(ThemeDefinition):
@@ -103,6 +103,14 @@ class ModernTheme(ThemeDefinition):
         )
 
     @property
+    def metrics_mini(self) -> PanelMiniMetrics:
+        return PanelMiniMetrics(
+            panel_width=95,
+            panel_height=40,
+            font_size_time=12,
+        )
+
+    @property
     def font_family(self) -> str:
         return "Microsoft YaHei UI"
 
@@ -151,15 +159,18 @@ class ModernTheme(ThemeDefinition):
     # ---------------------------------------------------------------
 
     def _draw_mini_time(self, painter: QPainter, panel):
-        """极简模式"""
+        """极简模式 — 时间文本上下左右完全居中"""
         w, h = panel.width(), panel.height()
-        time_font = QFont(self.font_family, 12)
+        m = panel._resolve_metrics()
+        time_font = QFont(self.font_family, m.font_size_time)
         painter.setFont(time_font)
         painter.setPen(QColor(*self.get_color("performance_panel_time")))
         time_str = datetime.now().strftime("%H:%M:%S")
         fm = painter.fontMetrics()
         tw = fm.horizontalAdvance(time_str)
-        painter.drawText((w - tw) // 2, h // 2 + fm.ascent() // 2, time_str)
+        # 垂直居中：基线 y = 面板高度一半 + (ascent - descent)/2
+        text_y = (h + fm.ascent() - fm.descent()) // 2
+        painter.drawText((w - tw) // 2, text_y, time_str)
 
     def _draw_left_info(self, painter: QPainter, panel, m):
         """左侧：时间 + 日期 + 月度年度进度（紧凑纵向间距）"""
@@ -266,4 +277,4 @@ class ModernTheme(ThemeDefinition):
         painter.setPen(QColor(*self.get_color("performance_panel_todo_text")))
         max_todo_w = w - 40
         elided = fm.elidedText(todo_text, Qt.ElideRight, max_todo_w)
-        painter.drawText(12, line_y + fm.ascent() + 2, f"📋 {elided}")
+        painter.drawText(6, line_y + fm.ascent() + 2, f"📋 {elided}")

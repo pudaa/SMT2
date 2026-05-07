@@ -53,14 +53,14 @@ class PanelCompactMetrics:
 @dataclass
 class PanelMiniMetrics:
     """极简模式 - 只显示时间"""
-    panel_width: int = 120
+    panel_width: int = 85
     panel_height: int = 40
     ring_diameter: int = 0          # 不绘制
     ring_spacing: int = 0
     ring_start_x: int = 0
     ring_y: int = 0
     ring_width: int = 0
-    time_y: int = 12
+    time_y: int = 12                # 保留做基线参考，实际使用动态居中
     font_size_time: int = 10
     font_size_ring_title: int = 0
     font_size_ring_value: int = 0
@@ -148,7 +148,8 @@ class ThemeDefinition(ABC):
         tw = fm.horizontalAdvance(time_str)
         
         if mode == "mini":
-            painter.drawText((panel.width() - tw) // 2, m.time_y, time_str)
+            text_y = (panel.height() + fm.ascent() - fm.descent()) // 2
+            painter.drawText((panel.width() - tw) // 2, text_y, time_str)
             return
         
         if getattr(m, 'time_align_left', False):
