@@ -177,13 +177,18 @@ class SettingView(QScrollArea):
         layout = QVBoxLayout(group)
         
         checkbox = QCheckBox("启用开机自启")
-        
-        registry_status = self.auto_start_manager.is_auto_start_enabled()
+        # 优先使用注册表实际状态；如果注册表中没有值，则使用配置文件中的值
+        registry_status = False
+        try:
+            registry_status = self.auto_start_manager.is_auto_start_enabled()
+        except Exception:
+            registry_status = False
+
         config_value = self.config_data.get(key, False)
         if isinstance(config_value, str):
             config_value = config_value.lower() in ['true', '1', 'yes']
-        
-        final_state = registry_status if registry_status != config_value else config_value
+
+        final_state = registry_status if registry_status else bool(config_value)
         checkbox.setChecked(bool(final_state))
         checkbox.setObjectName(f"checkbox_{key}")
         checkbox.stateChanged.connect(lambda state, k=key: self.on_auto_start_changed(k, state))
@@ -509,7 +514,8 @@ class SettingView(QScrollArea):
         # print(f"========================")
         
         if success:
-            self.config_data[key] = new_status
+            # 保存为布尔值（注册表的实际状态）
+            self.config_data[key] = bool(new_status)
             self.config_modified = True
             
             self.save_config()
