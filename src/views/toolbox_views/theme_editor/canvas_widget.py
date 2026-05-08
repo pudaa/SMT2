@@ -10,7 +10,6 @@ from PySide6.QtGui import (
     QPainter, QPen, QColor, QFont, QPixmap, QMouseEvent,
 )
 from PySide6.QtCore import Qt, Signal, QPoint, QRect
-from datetime import datetime
 import os
 from src.themes.base_theme import StickerData
 
@@ -89,6 +88,7 @@ class ThemeCanvas(QWidget):
         self._suppress_signals: bool = False
 
         self.sim_day_progress = 0.35
+        self.sim_week_progress = 0.25
         self.sim_month_progress = 0.18
         self.sim_year_progress = 0.35
         self.performance_mode = False
@@ -115,17 +115,22 @@ class ThemeCanvas(QWidget):
 
     def get_component_states(self) -> dict[str, dict]:
         """导出功能组件状态（持久化用）"""
+        TEXT_TYPES = ("time", "date", "month_info", "todo_line")
         states = {}
         for c in self._components:
-            if c.category == "functional":
-                states[c.comp_type] = {
+            if c.category == "functional" and c.comp_type != "background":
+                entry = {
                     "visible": c.visible, "x": c.x, "y": c.y,
                     "width": c.width, "height": c.height,
                 }
+                if c.comp_type in TEXT_TYPES:
+                    entry["font_size"] = c.extra.get("font_size", 0)
+                states[c.comp_type] = entry
         return states
 
     def apply_component_states(self, states: dict[str, dict]):
         """从持久化数据恢复组件状态"""
+        TEXT_TYPES = ("time", "date", "month_info", "todo_line")
         for ctype, s in states.items():
             for c in self._components:
                 if c.comp_type == ctype:
@@ -134,6 +139,10 @@ class ThemeCanvas(QWidget):
                     c.y = s.get("y", c.y)
                     c.width = s.get("width", c.width)
                     c.height = s.get("height", c.height)
+                    if ctype in TEXT_TYPES:
+                        fs = s.get("font_size", 0)
+                        if fs:
+                            c.extra["font_size"] = fs
                     break
 
     def clear_all_functional_components(self):
@@ -186,22 +195,27 @@ class ThemeCanvas(QWidget):
             return
 
         defaults = {
-            "time":       {"name": "时间",    "x": 0.07, "y": 0.30, "locked": True, "deletable": False},
-            "date":       {"name": "日期",    "x": 0.07, "y": 0.50, "locked": True, "deletable": False},
+            "background":{"name": "背景",    "x": 0.5, "y": 0.5, "locked": True, "deletable": False},
+            "time":      {"name": "时间",    "x": 0.07, "y": 0.30, "locked": True, "deletable": False},
+            "date":      {"name": "日期",    "x": 0.07, "y": 0.50, "locked": True, "deletable": False},
             "day_ring":   {"name": "日进度环","x": 0.82, "y": 0.44, "locked": True, "deletable": False},
             "week_ring":  {"name": "周进度环","x": 0.22, "y": 0.44, "locked": True, "deletable": False},
             "month_ring": {"name": "月进度环","x": 0.42, "y": 0.44, "locked": True, "deletable": False},
             "year_ring":  {"name": "年进度环","x": 0.62, "y": 0.44, "locked": True, "deletable": False},
             "month_info": {"name": "月/年",   "x": 0.07, "y": 0.70, "locked": True, "deletable": False},
-            "todo_line":  {"name": "待办",    "x": 0.50, "y": 0.90, "locked": True, "deletable": False},
-            "divider":    {"name": "分隔线",  "x": 0.50, "y": 0.82, "locked": False, "deletable": True},
+            "todo_line":  {"name": "待办",    "x": 0.50, "y": 0.90, "locked": True, "deletable": False,
+                           "width": 0.40, "height": 0.12},
+            "divider":    {"name": "分隔线",  "x": 0.50, "y": 0.82, "locked": False, "deletable": True,
+                           "width": 0.40, "height": 0.12, "category": "functional"},
         }
         d = defaults.get(comp_type, {"name": comp_type, "x": 0.5, "y": 0.5, "locked": False, "deletable": True})
 
         comp = CanvasComponent(
             comp_id=uuid.uuid4().hex[:12], comp_type=comp_type,
-            name=d["name"], category="functional" if d["locked"] else "decorative",
-            x=d["x"], y=d["y"], width=0.18, height=0.10,
+            name=d["name"],
+            category=d.get("category", "functional" if d["locked"] else "decorative"),
+            x=d["x"], y=d["y"],
+            width=d.get("width", 0.18), height=d.get("height", 0.10),
             locked=d["locked"], deletable=d["deletable"],
         )
         self._components.append(comp)
@@ -230,6 +244,8 @@ class ThemeCanvas(QWidget):
                 continue
             if key in ("x", "y", "width", "height"):
                 setattr(c, key, float(value))
+            elif key == "font_size":
+                c.extra["font_size"] = int(value)
             elif key == "visible":
                 c.visible = bool(value)
             elif key == "color_token":
@@ -338,7 +354,7 @@ class ThemeCanvas(QWidget):
 
     def _hit_test(self, canvas_pos: QPoint, panel_rect: QRect) -> CanvasComponent | None:
         for c in reversed(self._components):
-            if not c.visible:
+            if not c.visible or c.comp_type == "background":
                 continue
             r = c.canvas_rect(panel_rect)
             r = r.adjusted(-6, -6, 6, 6)
@@ -355,10 +371,13 @@ class ThemeCanvas(QWidget):
         painter.setRenderHint(QPainter.Antialiasing)
         cw, ch = self.width(), self.height()
 
-        painter.fillRect(0, 0, cw, ch, QColor(45, 45, 45))
+        # 根据当前主题的 panel 背景色亮度决定画布背景色
+        bg_color = self.colors.get("performance_panel_background", [60, 60, 60, 200])
+        luminance = 0.299 * bg_color[0] + 0.587 * bg_color[1] + 0.114 * bg_color[2]
+        canvas_bg = QColor(220, 220, 220) if luminance > 128 else QColor(45, 45, 45)
+        painter.fillRect(0, 0, cw, ch, canvas_bg)
 
         panel = self._panel_rect()
-        px, py, pw, ph = panel.x(), panel.y(), panel.width(), panel.height()
 
         # 面板外边框
         pen = QPen(QColor(100, 100, 100, 60), 1, Qt.DashLine)
@@ -366,22 +385,17 @@ class ThemeCanvas(QWidget):
         painter.setBrush(Qt.NoBrush)
         painter.drawRect(panel)
 
-        # 面板背景
-        bg = self.colors.get("performance_panel_background", [60, 60, 60, 220])
-        painter.setBrush(QColor(*bg))
-        painter.setPen(QPen(QColor(90, 90, 90), 1))
-        painter.drawRoundedRect(px, py, pw, ph, 8, 8)
-
-        painter.save()
-        painter.setClipRect(panel)
-        self._draw_time_text(painter, panel)
-        self._draw_date_text(painter, panel)
-        self._draw_all_rings(painter, panel)
-        self._draw_month_year(painter, panel)
-        self._draw_divider(painter, panel)
-        self._draw_todo_text(painter, panel)
-        self._draw_stickers(painter, panel)
-        painter.restore()
+        # 委托给通用渲染引擎
+        cs = self._build_component_states_dict()
+        sim = _SimData(self.sim_day_progress, self.sim_week_progress,
+                       self.sim_month_progress, self.sim_year_progress)
+        if self._theme:
+            self._theme._colors = self.colors
+            self._theme._stickers = self._stickers
+            self._theme.draw_generic_panel(painter, panel, cs, sim)
+        else:
+            from src.themes.base_theme import ThemeDefinition
+            self._draw_generic_fallback(painter, panel, cs, sim)
 
         self._draw_selection_indicators(painter, panel)
         self._draw_grid(painter, panel)
@@ -393,142 +407,47 @@ class ThemeCanvas(QWidget):
         pw, ph = sizes.get(self._preview_mode, (180, 80))
         return QRect((cw - pw) // 2, (ch - ph) // 2, pw, ph)
 
-    def _comp_px(self, comp, panel, dx, dy):
-        x = comp.x if comp else dx
-        y = comp.y if comp else dy
-        return int(panel.x() + panel.width() * x), int(panel.y() + panel.height() * y)
-
     def _find(self, ctype):
         for c in self._components:
             if c.comp_type == ctype:
                 return c
         return None
 
-    def _draw_time_text(self, painter, panel):
-        c = self._find("time")
-        if c and not c.visible:
-            return
-        cx, cy = self._comp_px(c, panel, 0.07, 0.30)
-        color = self.colors.get("performance_panel_time", [255, 255, 255])
-        painter.setFont(QFont("Microsoft YaHei UI", 13, QFont.Bold))
-        painter.setPen(QColor(*color))
-        painter.drawText(cx, cy, datetime.now().strftime("%H:%M:%S"))
+    def _build_component_states_dict(self) -> dict:
+        """从画布组件列表构建 component_states 字典"""
+        TEXT_TYPES = ("time", "date", "month_info", "todo_line")
+        cs = {}
+        for c in self._components:
+            if c.category == "functional" and c.comp_type != "background":
+                entry = {
+                    "visible": c.visible, "x": c.x, "y": c.y,
+                    "width": c.width, "height": c.height,
+                }
+                if c.comp_type in TEXT_TYPES:
+                    fs = c.extra.get("font_size", 0)
+                    if fs:
+                        entry["font_size"] = fs
+                cs[c.comp_type] = entry
+        return cs
 
-    def _draw_date_text(self, painter, panel):
-        c = self._find("date")
-        if not c or not c.visible:
-            return
-        cx, cy = self._comp_px(c, panel, 0.07, 0.50)
-        color = self.colors.get("performance_panel_date", [190, 190, 190])
-        painter.setFont(QFont("Microsoft YaHei UI", 9))
-        painter.setPen(QColor(*color))
-        now = datetime.now()
-        wd = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
-        painter.drawText(cx, cy, f"{now.month}月{now.day}日 {wd[now.weekday()]}")
-
-    def _draw_all_rings(self, painter, panel):
-        """绘制所有进度环（日/周/月/年），仅绘制存在且可见的组件"""
-        ring_types = [
-            ("day_ring",   self.sim_day_progress,   "日"),
-            ("week_ring",  0.50,                    "周"),
-            ("month_ring", self.sim_month_progress, "月"),
-            ("year_ring",  self.sim_year_progress,  "年"),
-        ]
-        for ctype, progress, label in ring_types:
-            c = self._find(ctype)
-            if not c or not c.visible:
-                continue
-            self._draw_single_canvas_ring(painter, panel, c, ctype, progress, label)
-
-    def _draw_single_canvas_ring(self, painter, panel, c, ctype, progress, label):
-        """绘制单个进度环（canvas 版本，归一化坐标）"""
-        default_pos = {
-            "day_ring": (0.82, 0.44), "week_ring": (0.22, 0.44),
-            "month_ring": (0.42, 0.44), "year_ring": (0.62, 0.44),
-        }
-        dx, dy = default_pos.get(ctype, (0.5, 0.5))
-        if c:
-            dx, dy = c.x, c.y
-        cx = int(panel.x() + panel.width() * dx)
-        cy = int(panel.y() + panel.height() * dy)
-        # 半径 ≈ 面板宽度的 1/8（与 modern_theme 44/180≈0.24 匹配）
-        r = max(8, panel.width() // 8)
-
-        ring_bg = self.colors.get("performance_panel_progress_ring_background", [72, 72, 72, 140])
-        ring_fg = self.colors.get("performance_panel_progress_ring_foreground", [240, 240, 240])
-        pen = QPen(QColor(*ring_bg), 2)
-        pen.setCapStyle(Qt.RoundCap)
-        painter.setPen(pen)
-        painter.drawEllipse(cx - r, cy - r, r * 2, r * 2)
-        pen.setColor(QColor(*ring_fg))
-        painter.setPen(pen)
-        span = int(360 * max(0.0, min(1.0, progress)) * 16)
-        painter.drawArc(cx - r, cy - r, r * 2, r * 2, 90 * 16, -span)
-
-        font = QFont("Microsoft YaHei UI", 7, QFont.Bold)
-        painter.setFont(font)
-        painter.setPen(QColor(*self.colors.get("performance_panel_progress_text", [245, 245, 245])))
-        pct = f"{round(progress * 100)}%"
-        fm = painter.fontMetrics()
-        painter.drawText(cx - fm.horizontalAdvance(pct) // 2, cy + fm.ascent() // 2, pct)
-
-    def _draw_month_year(self, painter, panel):
-        c = self._find("month_info")
-        if not c or not c.visible:
-            return
-        cx, cy = self._comp_px(c, panel, 0.07, 0.68)
-        color = self.colors.get("performance_panel_sub_info", [150, 150, 150])
-        painter.setFont(QFont("Microsoft YaHei UI", 8))
-        painter.setPen(QColor(*color))
-        painter.drawText(cx, cy, f"月 {round(self.sim_month_progress*100)}% · 年 {round(self.sim_year_progress*100)}%")
-
-    def _draw_divider(self, painter, panel):
-        c = self._find("divider")
-        if not c or not c.visible:
-            return
-        cx, cy = self._comp_px(c, panel, 0.50, 0.82)
-        color = self.colors.get("performance_panel_divider", [100, 100, 100, 80])
-        painter.setPen(QPen(QColor(*color), 1))
-        lw = panel.width() * 0.75
-        lx = int(panel.x() + panel.width() * 0.125)
-        painter.drawLine(lx, cy, int(lx + lw), cy)
-
-    def _draw_todo_text(self, painter, panel):
-        c = self._find("todo_line")
-        if not c or not c.visible:
-            return
-        cx, cy = self._comp_px(c, panel, 0.50, 0.92)
-        color = self.colors.get("performance_panel_todo_text", [170, 170, 170])
-        painter.setFont(QFont("Microsoft YaHei UI", 8))
-        painter.setPen(QColor(*color))
-        text = "📋 示例待办事项..."
-        fm = painter.fontMetrics()
-        painter.drawText(cx - fm.horizontalAdvance(text) // 2, cy, text)
-
-    def _draw_stickers(self, painter, panel):
-        for s in sorted(self._stickers, key=lambda s: s.z_order):
-            if not s.visible or not os.path.isfile(s.image_path):
-                continue
-            pixmap = QPixmap(s.image_path)
-            if pixmap.isNull():
-                continue
-            tw = int(pixmap.width() * s.scale)
-            th = int(pixmap.height() * s.scale)
-            tx = int(panel.x() + panel.width() * s.x) - tw // 2
-            ty = int(panel.y() + panel.height() * s.y) - th // 2
-            painter.save()
-            painter.setOpacity(s.opacity)
-            if s.rotation != 0:
-                painter.translate(tx + tw / 2, ty + th / 2)
-                painter.rotate(s.rotation)
-                painter.drawPixmap(int(-tw / 2), int(-th / 2), tw, th, pixmap)
-            else:
-                painter.drawPixmap(tx, ty, tw, th, pixmap)
-            painter.restore()
+    def _draw_generic_fallback(self, painter, panel, cs, sim):
+        """无主题时的回退渲染（与 draw_generic_panel 逻辑一致）"""
+        # 这只是字体渲染在无主题时的回退色
+        from PySide6.QtCore import Qt as QtCore
+        px, py, pw, ph = panel.x(), panel.y(), panel.width(), panel.height()
+        bg = QColor(*self.colors.get("performance_panel_background", [60, 60, 60, 220]))
+        painter.setBrush(bg)
+        painter.setPen(QPen(QColor(90, 90, 90), 1))
+        painter.drawRoundedRect(px, py, pw, ph, 8, 8)
+        # 委托给 draw_generic_panel 通过临时主题实例
+        from src.themes.base_theme import CustomTheme
+        tmp = CustomTheme(colors=self.colors, based_on="modern")
+        tmp._stickers = self._stickers
+        tmp.draw_generic_panel(painter, panel, cs, sim)
 
     def _draw_selection_indicators(self, painter, panel):
         for c in self._components:
-            if not c.visible:
+            if not c.visible or c.comp_type == "background":
                 continue
             r = c.canvas_rect(panel)
             if c is self._selected_comp:
@@ -555,3 +474,15 @@ class ThemeCanvas(QWidget):
             painter.drawLine(gx, py, gx, py + ph)
         for gy in range(py, py + ph, grid):
             painter.drawLine(px, gy, px + pw, gy)
+
+
+class _SimData:
+    """模拟数据提供者，供画布预览使用"""
+    __slots__ = ('day_progress', 'week_progress', 'month_progress', 'year_progress', 'first_todo_text')
+
+    def __init__(self, day, week, month, year):
+        self.day_progress = day
+        self.week_progress = week
+        self.month_progress = month
+        self.year_progress = year
+        self.first_todo_text = "示例待办事项"

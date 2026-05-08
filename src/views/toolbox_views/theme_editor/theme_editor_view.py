@@ -77,6 +77,9 @@ class ThemeEditorView(QWidget):
         self._preview_timer.timeout.connect(self.canvas.update)
         self._preview_timer.start(1000)
 
+        # 默认加载当前使用中的主题
+        self._load_theme_for_editing(theme_manager.current_theme_name)
+
     # ================================================================
     # 工具栏
     # ================================================================
@@ -243,11 +246,11 @@ class ThemeEditorView(QWidget):
         based_on = getattr(theme, '_based_on', "modern")
         is_classical = based_on == "classical"
         if is_classical:
-            # 经典主题布局：时间 + 4 个进度环
-            essential_types = ["time", "day_ring", "week_ring", "month_ring", "year_ring"]
+            # 经典主题布局：背景 + 时间 + 4 个进度环
+            essential_types = ["background", "time", "day_ring", "week_ring", "month_ring", "year_ring"]
         else:
-            # 现代主题布局：时间 + 日期 + 日进度环 + 月年信息 + 待办 + 分隔线
-            essential_types = ["time", "date", "day_ring", "month_info", "todo_line", "divider"]
+            # 现代主题布局：背景 + 时间 + 日期 + 日进度环 + 月年信息 + 待办 + 分隔线
+            essential_types = ["background", "time", "date", "day_ring", "month_info", "todo_line", "divider"]
 
         # 合并持久化的组件状态（可能包含非默认组件）
         cs = getattr(theme, '_component_states', {})
@@ -368,9 +371,8 @@ class ThemeEditorView(QWidget):
             self.coord_label.setText("")
 
     def _on_canvas_component_moved(self, comp_data: dict):
-        """画布组件移动 → 更新属性面板坐标并标记脏"""
+        """画布组件移动 → 仅更新状态栏坐标，避免重建属性面板"""
         self._dirty = True
-        self.property_panel.load_component(comp_data)
         x, y = comp_data.get("x", 0), comp_data.get("y", 0)
         self.coord_label.setText(f"X:{x:.3f}  Y:{y:.3f}")
 

@@ -7,8 +7,7 @@ from PySide6.QtCore import Qt, Signal
 
 
 # 可用组件定义
-BUILTIN_COMPONENTS = [
-    {"type": "time",       "name": "🕐 时间",      "category": "functional"},
+BUILTIN_COMPONENTS = [    {"type": "background","name": "🎨 背景颜色",  "category": "functional"},    {"type": "time",       "name": "🕐 时间",      "category": "functional"},
     {"type": "date",       "name": "📅 日期",      "category": "functional"},
     {"type": "day_ring",   "name": "📊 日进度环",  "category": "functional"},
     {"type": "week_ring",  "name": "📊 周进度环",  "category": "functional"},

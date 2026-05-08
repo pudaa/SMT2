@@ -149,7 +149,7 @@ class ThemeDefinition(ABC):
 
     def paint_stickers(self, painter, panel_rect):
         """绘制贴纸到面板上
-        
+
         参数:
             painter:   QPainter（已设置好抗锯齿）
             panel_rect: 面板矩形区域
@@ -158,19 +158,18 @@ class ThemeDefinition(ABC):
         stickers = self.get_stickers()
         if not stickers:
             return
-        pw, ph = panel_rect.width(), panel_rect.height()
+        px, py, pw, ph = panel_rect.x(), panel_rect.y(), panel_rect.width(), panel_rect.height()
         for sticker in sorted(stickers, key=lambda s: s.z_order):
             if not sticker.visible or not os.path.isfile(sticker.image_path):
                 continue
             pixmap = QPixmap(sticker.image_path)
             if pixmap.isNull():
                 continue
-            # 按缩放比计算目标尺寸
             target_w = int(pixmap.width() * sticker.scale)
             target_h = int(pixmap.height() * sticker.scale)
-            # 归一化坐标 → 像素坐标
-            target_x = int(pw * sticker.x) - target_w // 2
-            target_y = int(ph * sticker.y) - target_h // 2
+            # 归一化坐标 → 像素坐标（相对于 panel_rect 原点）
+            target_x = px + int(pw * sticker.x) - target_w // 2
+            target_y = py + int(ph * sticker.y) - target_h // 2
 
             painter.save()
             painter.setOpacity(sticker.opacity)
@@ -185,6 +184,141 @@ class ThemeDefinition(ABC):
             else:
                 painter.drawPixmap(target_x, target_y, target_w, target_h, pixmap)
             painter.restore()
+
+    # ================================================================
+    # 通用渲染引擎 —— 基于规范化坐标 (0.0~1.0) 渲染所有组件
+    # 供 CustomTheme.paint_panel 和 ThemeCanvas 共用
+    # ================================================================
+
+    def draw_generic_panel(self, painter, panel_rect,
+                           component_states: dict,
+                           data_provider):
+        """通用面板渲染：读取 component_states 中的位置/可见性绘制所有组件
+
+        component_states: {comp_type: {visible, x, y, width, height}}
+        data_provider:    提供数据（需有 day_progress/week_progress 等属性）
+        """
+        from PySide6.QtGui import QColor, QFont, QPen
+        from PySide6.QtCore import Qt
+        from datetime import datetime
+        import os
+
+        px, py, pw, ph = panel_rect.x(), panel_rect.y(), panel_rect.width(), panel_rect.height()
+        font_family = self.font_family
+        cs = component_states
+
+        def _cs(ctype: str) -> dict:
+            return cs.get(ctype, {})
+
+        def _visible(ctype: str) -> bool:
+            return _cs(ctype).get("visible", True)
+
+        def _x(ctype: str, default: float) -> float:
+            return _cs(ctype).get("x", default)
+
+        def _y(ctype: str, default: float) -> float:
+            return _cs(ctype).get("y", default)
+
+        def _px(ctype: str, dx: float) -> int:
+            return int(px + pw * _x(ctype, dx))
+
+        def _py(ctype: str, dy: float) -> int:
+            return int(py + ph * _y(ctype, dy))
+
+        def _fs(ctype: str, default: int) -> int:
+            return int(_cs(ctype).get("font_size", default))
+
+        # ---- 背景 ----
+        bg = self.get_color("performance_panel_background")
+        painter.setBrush(QColor(*bg))
+        painter.setPen(Qt.NoPen)
+        painter.drawRoundedRect(px, py, pw, ph, 5, 5)
+
+        painter.save()
+        painter.setClipRect(panel_rect)
+
+        # ---- 时间 ----
+        if _visible("time"):
+            cx, cy = _px("time", 0.07), _py("time", 0.30)
+            painter.setFont(QFont(font_family, _fs("time", 13), QFont.Bold))
+            painter.setPen(QColor(*self.get_color("performance_panel_time")))
+            painter.drawText(cx, cy, datetime.now().strftime("%H:%M:%S"))
+
+        # ---- 日期 ----
+        if _visible("date"):
+            cx, cy = _px("date", 0.07), _py("date", 0.50)
+            painter.setFont(QFont(font_family, _fs("date", 9)))
+            painter.setPen(QColor(*self.get_color("performance_panel_date")))
+            now = datetime.now()
+            wd = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
+            painter.drawText(cx, cy, f"{now.month}月{now.day}日 {wd[now.weekday()]}")
+
+        # ---- 进度环（日/周/月/年） ----
+        ring_bg_color = self.get_color("performance_panel_progress_ring_background")
+        ring_fg_color = self.get_color("performance_panel_progress_ring_foreground")
+        text_color = self.get_color("performance_panel_progress_text")
+        ring_defaults = {
+            "day_ring":   (0.82, 0.44, getattr(data_provider, 'day_progress', 0.35)),
+            "week_ring":  (0.22, 0.44, getattr(data_provider, 'week_progress', 0.25)),
+            "month_ring": (0.42, 0.44, getattr(data_provider, 'month_progress', 0.18)),
+            "year_ring":  (0.62, 0.44, getattr(data_provider, 'year_progress', 0.35)),
+        }
+        r = max(8, pw // 8)
+        for ctype, (dx, dy, progress) in ring_defaults.items():
+            if not _visible(ctype):
+                continue
+            cx = int(px + pw * _x(ctype, dx))
+            cy = int(py + ph * _y(ctype, dy))
+            pen = QPen(QColor(*ring_bg_color), 2)
+            pen.setCapStyle(Qt.RoundCap)
+            painter.setPen(pen)
+            painter.drawEllipse(cx - r, cy - r, r * 2, r * 2)
+            pen.setColor(QColor(*ring_fg_color))
+            painter.setPen(pen)
+            span = int(360 * max(0.0, min(1.0, progress)) * 16)
+            painter.drawArc(cx - r, cy - r, r * 2, r * 2, 90 * 16, -span)
+            painter.setFont(QFont(font_family, 7, QFont.Bold))
+            painter.setPen(QColor(*text_color))
+            pct = f"{round(progress * 100)}%"
+            fm = painter.fontMetrics()
+            painter.drawText(cx - fm.horizontalAdvance(pct) // 2, cy + fm.ascent() // 2, pct)
+
+        # ---- 月/年进度文本 ----
+        if _visible("month_info"):
+            cx, cy = _px("month_info", 0.07), _py("month_info", 0.68)
+            painter.setFont(QFont(font_family, _fs("month_info", 8)))
+            painter.setPen(QColor(*self.get_color("performance_panel_sub_info")))
+            mp = getattr(data_provider, 'month_progress', 0)
+            yp = getattr(data_provider, 'year_progress', 0)
+            painter.drawText(cx, cy, f"月 {round(mp * 100)}% · 年 {round(yp * 100)}%")
+
+        # ---- 分隔线 ----
+        if _visible("divider"):
+            cx = _px("divider", 0.50)
+            cy = _py("divider", 0.82)
+            painter.setPen(QPen(QColor(*self.get_color("performance_panel_divider")), 1))
+            lw = pw * 0.75
+            painter.drawLine(int(cx - lw // 2), cy, int(cx + lw // 2), cy)
+
+        # ---- 待办文本 ----
+        if _visible("todo_line"):
+            cx = _px("todo_line", 0.50)
+            cy = _py("todo_line", 0.90)
+            painter.setFont(QFont(font_family, _fs("todo_line", 8)))
+            painter.setPen(QColor(*self.get_color("performance_panel_todo_text")))
+            todo_text = getattr(data_provider, 'first_todo_text', '')
+            if todo_text:
+                fm = painter.fontMetrics()
+                max_w = max(pw - 20, 10)
+                elided = fm.elidedText(todo_text, Qt.ElideRight, max_w)
+                text = f"📋 {elided}"
+                tw = fm.horizontalAdvance(text)
+                painter.drawText(cx - tw // 2, cy, text)
+
+        painter.restore()
+
+        # ---- 贴纸层 ----
+        self.paint_stickers(painter, panel_rect)
 
     # ================================================================
     # 绘制入口 —— 子类可覆写以实现完全自定义的布局
@@ -424,15 +558,24 @@ class CustomTheme(ThemeDefinition):
         return "Microsoft YaHei UI"
 
     def paint_panel(self, painter, panel):
-        """委托给基础主题的绘制逻辑（缓存实例避免每帧创建）"""
-        from src.themes import _BUILTIN_THEMES
-        base_cls = _BUILTIN_THEMES.get(self._based_on)
-        if base_cls:
-            if not hasattr(self, '_cached_base_theme'):
-                self._cached_base_theme = base_cls()
-            # 注入颜色与贴纸到缓存的基础主题实例
-            self._cached_base_theme._COLORS = self._colors  # type: ignore
-            self._cached_base_theme._stickers = self._stickers  # type: ignore
-            self._cached_base_theme.paint_panel(painter, panel)
-        else:
-            super().paint_panel(painter, panel)
+        """自定义主题渲染 —— 基于 component_states 规范化坐标"""
+        from PySide6.QtCore import QRect
+        # 如果 component_states 为空，回退到 based_on 主题
+        if not self._component_states:
+            from src.themes import _BUILTIN_THEMES
+            base_cls = _BUILTIN_THEMES.get(self._based_on)
+            if base_cls:
+                if not hasattr(self, '_cached_base_theme'):
+                    self._cached_base_theme = base_cls()
+                self._cached_base_theme._COLORS = self._colors  # type: ignore
+                self._cached_base_theme._stickers = self._stickers  # type: ignore
+                self._cached_base_theme.paint_panel(painter, panel)
+                return
+
+        # 使用通用渲染引擎
+        self.draw_generic_panel(
+            painter,
+            QRect(0, 0, panel.width(), panel.height()),
+            self._component_states,
+            panel,
+        )

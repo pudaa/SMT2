@@ -9,6 +9,10 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor
 
 
+# 文字组件类型（字号替代宽高）
+_TEXT_TYPES = {"time", "date", "month_info", "todo_line"}
+
+
 class PropertyPanel(QWidget):
     """属性编辑面板
 
@@ -79,20 +83,31 @@ class PropertyPanel(QWidget):
         visible = comp_data.get("visible", True)
 
         self.info_label.setText(f"{name} ({category})\n类型: {ct}")
+        is_background = ct == "background"
         is_deletable = not locked and comp_data.get("deletable", True)
-        self.delete_btn.setVisible(is_deletable or locked)
-        if locked:
-            self.delete_btn.setText("👁️ 显示组件" if not visible else "👁️ 隐藏组件")
-            self.delete_btn.setStyleSheet("color: #aaa; font-weight: bold;")
+        if is_background:
+            self.delete_btn.setVisible(False)
         else:
-            self.delete_btn.setText("🗑️ 删除组件")
-            self.delete_btn.setStyleSheet("color: #e55; font-weight: bold;")
+            self.delete_btn.setVisible(is_deletable or locked)
+            if locked:
+                self.delete_btn.setText("👁️ 显示组件" if not visible else "👁️ 隐藏组件")
+                self.delete_btn.setStyleSheet("color: #aaa; font-weight: bold;")
+            else:
+                self.delete_btn.setText("🗑️ 删除组件")
+                self.delete_btn.setStyleSheet("color: #e55; font-weight: bold;")
 
         # ---- 通用属性 ----
         self._add_double_spin("x", "X 位置", comp_data.get("x", 0.5), 0.0, 1.0, 0.01, cid)
         self._add_double_spin("y", "Y 位置", comp_data.get("y", 0.5), 0.0, 1.0, 0.01, cid)
-        self._add_double_spin("width", "宽度", comp_data.get("width", 0.15), 0.02, 1.0, 0.01, cid)
-        self._add_double_spin("height", "高度", comp_data.get("height", 0.10), 0.01, 0.8, 0.01, cid)
+
+        # ---- 文字组件：字号；其他组件：宽高 ----
+        if ct in _TEXT_TYPES:
+            extra = comp_data.get("extra", {})
+            fs = extra.get("font_size", 12)
+            self._add_double_spin("font_size", "字号", fs, 6, 48, 1, cid)
+        else:
+            self._add_double_spin("width", "宽度", comp_data.get("width", 0.15), 0.02, 1.0, 0.01, cid)
+            self._add_double_spin("height", "高度", comp_data.get("height", 0.10), 0.01, 0.8, 0.01, cid)
 
         # ---- 可见性（所有组件） ----
         self._add_checkbox("visible", "可见", visible, cid)
@@ -235,13 +250,14 @@ class PropertyPanel(QWidget):
 
 # 组件类型 → 颜色令牌映射
 COMPONENT_COLOR_MAP = {
-    "time":       "performance_panel_time",
-    "date":       "performance_panel_date",
-    "day_ring":   "performance_panel_progress_ring_foreground",
-    "week_ring":  "performance_panel_progress_ring_foreground",
-    "month_ring": "performance_panel_progress_ring_foreground",
-    "year_ring":  "performance_panel_progress_ring_foreground",
-    "month_info": "performance_panel_sub_info",
-    "todo_line":  "performance_panel_todo_text",
-    "divider":    "performance_panel_divider",
+    "background":"performance_panel_background",
+    "time":      "performance_panel_time",
+    "date":      "performance_panel_date",
+    "day_ring":  "performance_panel_progress_ring_foreground",
+    "week_ring": "performance_panel_progress_ring_foreground",
+    "month_ring":"performance_panel_progress_ring_foreground",
+    "year_ring": "performance_panel_progress_ring_foreground",
+    "month_info":"performance_panel_sub_info",
+    "todo_line": "performance_panel_todo_text",
+    "divider":   "performance_panel_divider",
 }
