@@ -10,21 +10,21 @@ from typing import Optional, Callable
 import json
 import os
 from src.themes.base_theme import (
-    ThemeDefinition, PanelMetrics, PanelCompactMetrics, PanelMiniMetrics, CustomTheme
+    ThemeDefinition, PanelMetrics, PanelCompactMetrics, PanelMiniMetrics,
+    StickerData, CustomTheme
 )
 from src.themes.classical_theme import ClassicalTheme
 from src.themes.modern_theme import ModernTheme
+from src.utils.app_paths import AppPaths
 
 
 # ============================================================
-# 主题注册表 —— 今后新增主题只需在这里注册
+# 主题注册表
 # ============================================================
 _BUILTIN_THEMES: dict[str, type[ThemeDefinition]] = {
     "classical": ClassicalTheme,
     "modern": ModernTheme,
 }
-
-_CUSTOM_THEMES_FILE = "resources/custom_themes.json"
 
 
 class ThemeManager:
@@ -188,10 +188,11 @@ class ThemeManager:
 
     def _load_custom_themes(self):
         """从 JSON 文件加载自定义主题"""
-        if not os.path.exists(_CUSTOM_THEMES_FILE):
+        themes_file = AppPaths.get_custom_themes_file()
+        if not os.path.exists(themes_file):
             return
         try:
-            with open(_CUSTOM_THEMES_FILE, 'r', encoding='utf-8') as f:
+            with open(themes_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
             for item in data:
                 ct = CustomTheme.from_dict(item)
@@ -203,7 +204,8 @@ class ThemeManager:
         """保存自定义主题到 JSON 文件"""
         try:
             data = [ct.to_dict() for ct in self._custom_themes.values()]
-            with open(_CUSTOM_THEMES_FILE, 'w', encoding='utf-8') as f:
+            themes_file = AppPaths.get_custom_themes_file()
+            with open(themes_file, 'w', encoding='utf-8') as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
         except Exception as e:
             print(f"[ThemeManager] 保存自定义主题出错: {e}")

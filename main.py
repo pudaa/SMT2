@@ -7,6 +7,7 @@ from PySide6.QtCore import Qt, QTimer
 from src.views.main_views.main_widget import MainWidget
 from src.tray.system_tray import SystemTrayIcon
 from src.utils.auto_start_manager import AutoStartManager
+from src.utils.app_paths import AppPaths
 from src.configs.base_config import get_default_theme
 from src.themes import theme_manager
 
@@ -15,6 +16,10 @@ def main():
     # 导致所有相对路径（resources/*）解析失败，配置、主题、图标等全部回退到默认值
     exe_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
     os.chdir(exe_dir)
+    
+    # 启动时确保用户配置文件与待办事项文件存在
+    AppPaths.ensure_user_config_exists("default_properties.json")
+    AppPaths.ensure_todos_exists()
     
     QApplication.setHighDpiScaleFactorRoundingPolicy(
         Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)

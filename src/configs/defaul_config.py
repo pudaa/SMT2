@@ -1,165 +1,33 @@
-import json
-import os
+"""默认配置加载器 —— 单一数据源为 resources/default_properties.json
 
-class defaul_config():
-    def __init__(self):
-        self.default_properties = {
-            "todo_file_name": "resources/todos.json",
+不再在此文件中硬编码默认值，所有默认配置均从 JSON 文件加载。
+default_properties.json 随应用分发（只读），用户自定义配置保存在 AppData 中。
+"""
+import json
+from src.utils.app_paths import AppPaths
+
+
+def load_default_properties() -> dict:
+    """从内置只读资源加载默认配置（单一数据源）"""
+    default_file = AppPaths.get_resource("default_properties.json")
+    try:
+        with open(default_file, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"[defaul_config] 加载默认配置失败: {e}")
+        return {
+            "todo_file_name": AppPaths.get_todos_file(),
             "extractor_model": "jieba",
-            "todo_poses": [
-                "n",
-                "eng"
-            ],
+            "todo_poses": ["n", "eng"],
             "font": "Microsoft YaHei UI",
             "default_theme": "classical",
-            "colors": {
-                "performance_panel_background": [
-                    50,
-                    50,
-                    50,
-                    200
-                ],
-                "performance_panel_shadow": [
-                    0,
-                    0,
-                    0,
-                    80
-                ],
-                "performance_panel_time": [
-                    255,
-                    255,
-                    255
-                ],
-                "performance_panel_progress_ring_background": [
-                    70,
-                    70,
-                    70,
-                    150
-                ],
-                "performance_panel_progress_ring_foreground": [
-                    200,
-                    200,
-                    200
-                ],
-                "performance_panel_progress_title": [
-                    200,
-                    200,
-                    200
-                ],
-                "performance_panel_progress_text": [
-                    200,
-                    200,
-                    200
-                ],
-                "todo_panel_todoitem_background": [
-                    50,
-                    50,
-                    50,
-                    100
-                ],
-                "todo_panel_todoitem_foreground": [
-                    204,
-                    204,
-                    204
-                ],
-                "todo_panel_todoitem_checkbox_unchecked_border": [
-                    136,
-                    136,
-                    136
-                ],
-                "todo_panel_todoitem_checkbox_checked_border": [
-                    85,
-                    85,
-                    85
-                ],
-                "todo_panel_todoitem_checkbox_checked_background": [
-                    74,
-                    144,
-                    226
-                ],
-                "todo_panel_todoitem_lineedit_foreground": [
-                    204,
-                    204,
-                    204
-                ],
-                "todo_panel_todoitem_lineedit_focus": [
-                    74,
-                    144,
-                    226
-                ],
-                "todo_panel_todoitem_lineedit_finished": [
-                    136,
-                    136,
-                    136
-                ],
-                "todo_panel_todoitem_draglabel": [
-                    136,
-                    136,
-                    136
-                ],
-                "todo_panel_titlelabel_foreground": [
-                    204,
-                    204,
-                    204
-                ],
-                "todo_panel_titlelabel_background": [
-                    50,
-                    50,
-                    50,
-                    200
-                ],
-                "todo_panel_tagscrollarea_background": [
-                    50,
-                    50,
-                    50,
-                    200
-                ],
-                "todo_panel_tagbutton_background": [
-                    102,
-                    102,
-                    102
-                ],
-                "todo_panel_tagbutton_foreground": [
-                    204,
-                    204,
-                    204
-                ],
-                "todo_panel_tagbutton_checked_background": [
-                    74,
-                    144,
-                    226
-                ],
-                "todo_panel_tagbutton_checked_foreground": [
-                    255,
-                    255,
-                    255
-                ],
-                "todo_panel_tagbutton_check_hover_background": [
-                    119,
-                    119,
-                    119
-                ],
-                "todo_panel_tagbutton_checked_hover_background": [
-                    90,
-                    160,
-                    240
-                ],
-                "todo_panel_scrollarea_background": [
-                    50,
-                    50,
-                    50,
-                    200
-                ],
-                "todo_panel_scrollbar_background": [
-                    85,
-                    85,
-                    85
-                ]
-            }
         }
-        
-        self.defult_todos = []
-        
-    def get_default_properties(self):
+
+
+class defaul_config:
+    """向后兼容的类接口 —— 委托给 JSON 文件"""
+    def __init__(self):
+        self.default_properties = load_default_properties()
+
+    def get_default_properties(self) -> dict:
         return self.default_properties
-        

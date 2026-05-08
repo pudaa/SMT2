@@ -7,6 +7,7 @@ from PySide6.QtGui import QIcon, QPalette, QColor, QPainter, QPen
 from .home_view import HomeView
 from .setting_view import SettingView
 from .etoword_view import ExcelToWordView
+from .theme_editor import ThemeEditorView
 from src.views.components.switch import Switch
 from src.utils.theme_manager import ThemeManager
 
@@ -101,15 +102,17 @@ class ToolBoxWindow(QWidget):
         # 创建视图
         self.home_view = HomeView()
         self.excel_to_word_view = ExcelToWordView()
+        self.theme_editor_view = ThemeEditorView()
         self.setting_view = SettingView()
         
         # 设置应用按钮的回调
         self.setting_view.changes_made.connect(self.show_apply_button)
         
         # 添加到堆叠窗口
-        self.stacked_widget.addWidget(self.home_view)
-        self.stacked_widget.addWidget(self.excel_to_word_view)
-        self.stacked_widget.addWidget(self.setting_view)
+        self.stacked_widget.addWidget(self.home_view)            # index 0
+        self.stacked_widget.addWidget(self.excel_to_word_view)   # index 1
+        self.stacked_widget.addWidget(self.theme_editor_view)    # index 2
+        self.stacked_widget.addWidget(self.setting_view)         # index 3
         
         # 设置初始页面
         self.current_view = self.home_view
@@ -181,6 +184,7 @@ class ToolBoxWindow(QWidget):
         nav_items = [
             {"name": "首页", "icon": None},
             {"name": "Excel转Word", "icon": None},
+            {"name": "主题编辑器", "icon": None},
             {"name": "设置", "icon": None},
         ]
         
@@ -220,9 +224,11 @@ class ToolBoxWindow(QWidget):
         if index == 0:
             self.current_view = self.home_view
         elif index == 1:
-            self.current_view = self.setting_view
-        elif index == 2:
             self.current_view = self.excel_to_word_view
+        elif index == 2:
+            self.current_view = self.theme_editor_view
+        elif index == 3:
+            self.current_view = self.setting_view
 
     def show_apply_button(self):
         """显示或隐藏应用按钮，根据配置是否被修改"""

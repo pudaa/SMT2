@@ -1,5 +1,5 @@
 {
-    "todo_file_name": "resources/todos.json",
+    "todo_file_name": "todos.json",
     "extractor_model": "jieba",
     "todo_poses": [
         "n",

@@ -143,6 +143,7 @@ class ModernTheme(ThemeDefinition):
         # ---- mini 模式：仅居中时间 ----
         if mode == "mini":
             self._draw_mini_time(painter, panel)
+            self.paint_stickers(painter, panel.rect())
             return
 
         # ---- 左侧信息区 ----
@@ -153,6 +154,9 @@ class ModernTheme(ThemeDefinition):
 
         # ---- 分隔线 + 待办事项 ----
         self._draw_todo_section(painter, panel)
+
+        # ---- 贴纸层（最上层） ----
+        self.paint_stickers(painter, panel.rect())
 
     # ---------------------------------------------------------------
     # 分区绘制

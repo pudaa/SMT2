@@ -10,9 +10,10 @@ import json
 import os
 from src.configs.defaul_config import defaul_config
 from src.utils.auto_start_manager import AutoStartManager
+from src.utils.app_paths import AppPaths
 from src.themes import theme_manager
 from src.themes.base_theme import CustomTheme
-from src.configs.base_config import get_default_theme, set_default_theme
+from src.configs.base_config import get_default_theme, set_default_theme, save_properties, reload_properties
 
 class SettingView(QScrollArea):
     # 信号，当配置更改时发出
@@ -21,7 +22,8 @@ class SettingView(QScrollArea):
     def __init__(self):
         super().__init__()
         self.setObjectName("settingView")
-        self.config_path = "resources/properties.json"
+        self.config_path = AppPaths.get_properties_file()
+        AppPaths.ensure_user_config_exists()
         self.config_data = self.load_config()
         self.original_config = self.config_data.copy()  # 保存原始配置用于恢复
         
@@ -63,14 +65,11 @@ class SettingView(QScrollArea):
     
     def reset_to_default(self):
         """恢复到默认配置"""
-        # 加载默认配置文件
-        default_config_path = "resources/default_properties.json"
-        if os.path.exists(default_config_path):
-            # 从默认配置文件加载
+        default_config_path = AppPaths.get_resource("default_properties.json")
+        try:
             with open(default_config_path, 'r', encoding='utf-8') as f:
                 default_config = json.load(f)
-        else:
-            # 如果没有默认配置文件，使用硬编码的默认值
+        except Exception:
             default_config = self.default_config.get_default_properties()
         
         # 更新当前配置
@@ -128,7 +127,7 @@ class SettingView(QScrollArea):
     def apply_changes(self):
         """应用更改到配置文件"""
         self.save_config()
-        # 重置修改标志
+        reload_properties()  # 刷新 base_config 缓存
         self.config_modified = False
     
     def create_cards(self):
@@ -138,15 +137,14 @@ class SettingView(QScrollArea):
         
         group_names = {
             "colors": "颜色设置",
-            "todo_file_name": "待办事项路径",
             "extractor_model": "标签提取模型",
             "todo_poses": "标签提取规则",
             "font": "字体设置",
             "auto_start": "开机自启"
         }
         for key, value in self.config_data.items():
-            # default_theme 已在 create_theme_group 中处理
-            if key == "default_theme":
+            # 跳过已废弃/特殊处理的键
+            if key in ("default_theme", "todo_file_name"):
                 continue
             if key == "colors":
                 self.create_colors_group(value)
@@ -524,37 +522,38 @@ class SettingView(QScrollArea):
     def _add_color_edit_row(self, token: str, color_val: list[int]):
         """添加一行颜色编辑器"""
         row = QHBoxLayout()
-        
-        label = QLabel(token.replace('_', ' '))
-        label.setMinimumWidth(180)
+
+        # 缩短令牌名显示：去掉公共前缀，保留后两段
+        parts = token.replace('_', ' ').split()
+        short = ' '.join(parts[-3:]) if len(parts) > 3 else token.replace('_', ' ')
+        label = QLabel(short)
+        label.setMinimumWidth(120)
         row.addWidget(label)
-        
+
         row.addStretch()
-        
+
         color_btn = QPushButton()
-        color_btn.setFixedSize(36, 36)
+        color_btn.setFixedSize(28, 28)
         color_btn.setCursor(Qt.PointingHandCursor)
         qc = self._list_to_qcolor(color_val)
         self._style_color_btn(color_btn, qc)
-        
-        # 存储附加数据
+
         color_btn._token = token
         color_btn._qcolor = qc
         color_btn._alpha_spin = None
         color_btn.clicked.connect(lambda _, cb=color_btn: self._pick_custom_color(cb))
-        
+
         row.addWidget(color_btn)
-        
-        # Alpha 微调
+
         alpha_spin = QSpinBox()
         alpha_spin.setRange(0, 255)
         alpha_spin.setValue(qc.alpha())
-        alpha_spin.setFixedWidth(56)
-        alpha_spin.setPrefix("α ")
+        alpha_spin.setFixedWidth(48)
+        alpha_spin.setPrefix("α")
         alpha_spin.valueChanged.connect(lambda v, cb=color_btn: self._update_custom_alpha(cb, v))
         color_btn._alpha_spin = alpha_spin
         row.addWidget(alpha_spin)
-        
+
         self.custom_color_layout.addLayout(row)
     
     def _pick_custom_color(self, color_btn: QPushButton):

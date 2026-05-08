@@ -1,8 +1,10 @@
 """主题基类 - 定义所有主题必须实现的接口"""
 from __future__ import annotations
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 from typing import Optional
+import uuid
+import os
 
 
 @dataclass
@@ -66,6 +68,29 @@ class PanelMiniMetrics:
     font_size_ring_value: int = 0
 
 
+@dataclass
+class StickerData:
+    """用户贴纸 —— 装饰性 PNG 图片叠加在面板上
+    
+    坐标采用相对于面板的归一化值 (0.0~1.0)，
+    保证在不同面板尺寸下贴纸位置一致。
+    """
+    sticker_id: str = ""            # UUID，唯一标识
+    name: str = ""                  # 用户命名，如 "角落猫咪"
+    image_path: str = ""            # 磁盘上的 PNG 绝对路径
+    x: float = 0.5                  # 中心点 x (0.0~1.0 相对面板宽度)
+    y: float = 0.5                  # 中心点 y (0.0~1.0 相对面板高度)
+    scale: float = 1.0              # 缩放倍数
+    rotation: float = 0.0           # 旋转角度（度）
+    opacity: float = 1.0            # 透明度 (0.0~1.0)
+    z_order: int = 0                # 层叠顺序
+    visible: bool = True
+
+    def __post_init__(self):
+        if not self.sticker_id:
+            self.sticker_id = uuid.uuid4().hex[:12]
+
+
 class ThemeDefinition(ABC):
     """主题抽象基类
     
@@ -110,6 +135,57 @@ class ThemeDefinition(ABC):
     def font_family(self) -> str:
         return "Microsoft YaHei UI"
 
+    # ---- 贴纸 ----
+
+    _stickers: list[StickerData] = []
+
+    def get_stickers(self) -> list[StickerData]:
+        """返回当前主题的贴纸列表"""
+        return list(self._stickers)
+
+    def set_stickers(self, stickers: list[StickerData]):
+        """替换全部贴纸"""
+        self._stickers = list(stickers)
+
+    def paint_stickers(self, painter, panel_rect):
+        """绘制贴纸到面板上
+        
+        参数:
+            painter:   QPainter（已设置好抗锯齿）
+            panel_rect: 面板矩形区域
+        """
+        from PySide6.QtGui import QPixmap
+        stickers = self.get_stickers()
+        if not stickers:
+            return
+        pw, ph = panel_rect.width(), panel_rect.height()
+        for sticker in sorted(stickers, key=lambda s: s.z_order):
+            if not sticker.visible or not os.path.isfile(sticker.image_path):
+                continue
+            pixmap = QPixmap(sticker.image_path)
+            if pixmap.isNull():
+                continue
+            # 按缩放比计算目标尺寸
+            target_w = int(pixmap.width() * sticker.scale)
+            target_h = int(pixmap.height() * sticker.scale)
+            # 归一化坐标 → 像素坐标
+            target_x = int(pw * sticker.x) - target_w // 2
+            target_y = int(ph * sticker.y) - target_h // 2
+
+            painter.save()
+            painter.setOpacity(sticker.opacity)
+            if sticker.rotation != 0:
+                cx, cy = target_x + target_w / 2, target_y + target_h / 2
+                painter.translate(cx, cy)
+                painter.rotate(sticker.rotation)
+                painter.drawPixmap(
+                    int(-target_w / 2), int(-target_h / 2),
+                    target_w, target_h, pixmap
+                )
+            else:
+                painter.drawPixmap(target_x, target_y, target_w, target_h, pixmap)
+            painter.restore()
+
     # ================================================================
     # 绘制入口 —— 子类可覆写以实现完全自定义的布局
     # ================================================================
@@ -150,6 +226,7 @@ class ThemeDefinition(ABC):
         if mode == "mini":
             text_y = (panel.height() + fm.ascent() - fm.descent()) // 2
             painter.drawText((panel.width() - tw) // 2, text_y, time_str)
+            self.paint_stickers(painter, panel.rect())
             return
         
         if getattr(m, 'time_align_left', False):
@@ -165,6 +242,9 @@ class ThemeDefinition(ABC):
             self._draw_classic_performance_rings(painter, panel, m, mode)
         else:
             self._draw_classic_time_rings(painter, panel, m, mode)
+
+        # ---- 贴纸层（最上层） ----
+        self.paint_stickers(painter, panel.rect())
 
     # ---------------------------------------------------------------
     # 经典布局辅助方法（子类可复用）
@@ -240,10 +320,10 @@ class ThemeDefinition(ABC):
 
 
 class CustomTheme(ThemeDefinition):
-    """用户自定义主题 —— 颜色、尺寸均可从 JSON 动态加载
-    
-    布局参数继承自 ClassicalTheme（经典布局），用户只改配色。
-    如需自定义布局，可直接继承 ThemeDefinition 实现完整主题类。
+    """用户自定义主题 —— 颜色、尺寸、贴纸、组件状态均可持久化
+
+    _panel_sizes: {"normal": (180,80), "compact": (190,66), "mini": (95,40)}
+    _component_states: {comp_type: {"visible": True, "x": 0.07, "y": 0.30}}
     """
 
     name = "custom"
@@ -251,11 +331,25 @@ class CustomTheme(ThemeDefinition):
 
     def __init__(self, theme_name: str = "custom", display_name: str = "自定义",
                  colors: dict[str, list[int]] | None = None,
-                 based_on: str = "classical"):
+                 based_on: str = "modern",
+                 stickers: list[StickerData] | None = None,
+                 panel_sizes: dict[str, list[int]] | None = None,
+                 component_states: dict[str, dict] | None = None):
         self.name = theme_name
         self.display_name = display_name
         self._colors: dict[str, list[int]] = colors or {}
-        self._based_on = based_on  # 继承哪个内置主题的布局
+        self._based_on = based_on
+        self._stickers: list[StickerData] = list(stickers) if stickers else []
+        self._panel_sizes: dict[str, list[int]] = panel_sizes or {}
+        self._component_states: dict[str, dict] = component_states or {}
+
+    def get_panel_size(self, mode: str) -> tuple[int, int] | None:
+        """获取自定义面板尺寸，未设置返回 None"""
+        sz = self._panel_sizes.get(mode)
+        return (sz[0], sz[1]) if sz else None
+
+    def set_panel_size(self, mode: str, width: int, height: int):
+        self._panel_sizes[mode] = [width, height]
 
     def get_color(self, token: str) -> list[int]:
         return list(self._colors.get(token, [200, 200, 200]))
@@ -264,47 +358,62 @@ class CustomTheme(ThemeDefinition):
         return ""
 
     def to_dict(self) -> dict:
-        """序列化为可持久化的字典"""
         return {
             "name": self.name,
             "display_name": self.display_name,
             "colors": self._colors,
             "based_on": self._based_on,
+            "stickers": [asdict(s) for s in self._stickers],
+            "panel_sizes": self._panel_sizes,
+            "component_states": self._component_states,
         }
 
     @classmethod
     def from_dict(cls, data: dict) -> "CustomTheme":
+        stickers_raw = data.get("stickers", [])
+        stickers = [StickerData(**s) for s in stickers_raw]
         return cls(
             theme_name=data.get("name", "custom"),
             display_name=data.get("display_name", "自定义"),
             colors=data.get("colors", {}),
-            based_on=data.get("based_on", "classical"),
+            based_on=data.get("based_on", "modern"),
+            stickers=stickers,
+            panel_sizes=data.get("panel_sizes", {}),
+            component_states=data.get("component_states", {}),
         )
 
-    # 布局继承自 based_on 主题
+    # 布局：自定义尺寸优先，否则继承 based_on
     @property
     def metrics_normal(self) -> PanelMetrics:
-        from src.themes import _BUILTIN_THEMES
-        base_cls = _BUILTIN_THEMES.get(self._based_on)
-        if base_cls:
-            return base_cls().metrics_normal
-        return PanelMetrics()
+        base = self._base_metrics().metrics_normal
+        sz = self._panel_sizes.get("normal")
+        if sz:
+            base.panel_width, base.panel_height = sz[0], sz[1]
+        return base
 
     @property
     def metrics_compact(self) -> PanelCompactMetrics:
-        from src.themes import _BUILTIN_THEMES
-        base_cls = _BUILTIN_THEMES.get(self._based_on)
-        if base_cls:
-            return base_cls().metrics_compact
-        return PanelCompactMetrics()
+        base = self._base_metrics().metrics_compact
+        sz = self._panel_sizes.get("compact")
+        if sz:
+            base.panel_width, base.panel_height = sz[0], sz[1]
+        return base
 
     @property
     def metrics_mini(self) -> PanelMiniMetrics:
+        base = self._base_metrics().metrics_mini
+        sz = self._panel_sizes.get("mini")
+        if sz:
+            base.panel_width, base.panel_height = sz[0], sz[1]
+        return base
+
+    def _base_metrics(self) -> ThemeDefinition:
         from src.themes import _BUILTIN_THEMES
         base_cls = _BUILTIN_THEMES.get(self._based_on)
         if base_cls:
-            return base_cls().metrics_mini
-        return PanelMiniMetrics()
+            return base_cls()
+        from src.themes.modern_theme import ModernTheme
+        return ModernTheme()
 
     @property
     def font_family(self) -> str:
@@ -319,11 +428,11 @@ class CustomTheme(ThemeDefinition):
         from src.themes import _BUILTIN_THEMES
         base_cls = _BUILTIN_THEMES.get(self._based_on)
         if base_cls:
-            # 延迟创建并缓存基础主题实例
             if not hasattr(self, '_cached_base_theme'):
                 self._cached_base_theme = base_cls()
-            # 替换颜色引用后绘制
+            # 注入颜色与贴纸到缓存的基础主题实例
             self._cached_base_theme._COLORS = self._colors  # type: ignore
+            self._cached_base_theme._stickers = self._stickers  # type: ignore
             self._cached_base_theme.paint_panel(painter, panel)
         else:
             super().paint_panel(painter, panel)

@@ -5,6 +5,7 @@ import ctypes
 from PySide6.QtGui import QColor
 import functools
 import platform
+from src.utils.app_paths import AppPaths
 
 class ThemeManager(QObject):
     def __init__(self):
@@ -55,16 +56,12 @@ class ThemeManager(QObject):
         
     
     def _load_theme(self, theme_name):
-        """从文件加载主题样式"""
-        theme_file = f"resources/themes/{theme_name}_theme.qss"
-        
-        # 尝试从当前工作目录加载
+        """从文件加载主题 QSS 样式"""
+        theme_file = AppPaths.get_resource(f"themes/{theme_name}_theme.qss")
         if os.path.exists(theme_file):
             with open(theme_file, "r", encoding="utf-8") as f:
                 return f.read()
-        else:
-            # 如果文件不存在，返回空字符串
-            return ""
+        return ""
     
     def get_current_theme(self):
         """获取当前主题样式"""
