@@ -11,6 +11,11 @@ from src.configs.base_config import get_default_theme
 from src.themes import theme_manager
 
 def main():
+    # 当通过注册表 Run 键自启时，工作目录不是 exe 所在目录，
+    # 导致所有相对路径（resources/*）解析失败，配置、主题、图标等全部回退到默认值
+    exe_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
+    os.chdir(exe_dir)
+    
     QApplication.setHighDpiScaleFactorRoundingPolicy(
         Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
     

@@ -104,10 +104,12 @@ class TodoItemWidget(QWidget): # 单个待办事项组件
                 border-bottom: 1px solid {get_qss_color("todo_panel_todoitem_lineedit_focus", "#4a90e2")};
             }}
         """)
+        self.text_field.mousePressEvent = lambda e: self.text_field.setText(self.content_text)
         self.text_field.mouseDoubleClickEvent = self.handle_double_click
+        
         self.handle_text_show()
         
-        self.drag_label = QLabel("  ☰  ")
+        self.drag_label = QLabel(" ☰ ")
         self.drag_label.setStyleSheet(
             f"color: {get_qss_color('todo_panel_todoitem_draglabel', '#888')}; "
             f"font-size: {m.todo_drag_font_size}px; font-weight: bold;"
@@ -361,7 +363,7 @@ class TodoPanel(QWidget):
         layout.setSpacing(0)
         
         # 标题
-        title_label = QLabel("———— 待办事项 ————")
+        title_label = QLabel("——— 待办事项 ———")
         title_label.setAlignment(Qt.AlignCenter)
         title_label.setStyleSheet(f"""
             QLabel {{
