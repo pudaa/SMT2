@@ -1,11 +1,14 @@
 import json
 import os
+from datetime import datetime, timedelta
+from typing import Optional
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox, QLineEdit,
-    QScrollArea, QFrame, QSizePolicy, QTextEdit, QToolButton, QScrollBar
+    QScrollArea, QFrame, QSizePolicy, QTextEdit, QToolButton, QScrollBar,
+    QMenu
 )
 from PySide6.QtCore import Qt, QPoint, Signal, QThread, QObject, QTimer, QPropertyAnimation, QEasingCurve
-from PySide6.QtGui import QMouseEvent, QFontMetrics, QWheelEvent
+from PySide6.QtGui import QMouseEvent, QFontMetrics, QWheelEvent, QAction
 from src.utils.todo_tag_extractor import TodoTagExtractor
 from src.configs.base_config import get_qss_color, get_todo_file_name
 
@@ -35,9 +38,15 @@ class TodoItemWidget(QWidget): # 单个待办事项组件
     isDraggingDown = Signal(object)# 停止拖动信号
     deletionCompleted = Signal(object)  # 删除完成信号
     
-    def __init__(self, text="", parent=None):
+    def __init__(self, text="", parent=None, deadline=None, reminder_minutes=10, repeat=None):
         super().__init__(parent)
         self.content_text = text
+        # ---- 扩展元数据 ----
+        self.deadline: Optional[str] = deadline          # ISO 格式截止时间，例如 '2026-06-22T18:00:00'
+        self.reminder_minutes: int = reminder_minutes    # 提前提醒分钟数
+        self.repeat: Optional[str] = repeat              # 'daily' / 'weekly' / 'monthly' / None
+        self._reminded: bool = False                     # 本次提醒是否已触发（避免重复弹窗）
+
         from src.themes import theme_manager
         m = theme_manager.get_panel_metrics("normal")
         self.setFixedHeight(m.todo_item_height)
@@ -107,6 +116,7 @@ class TodoItemWidget(QWidget): # 单个待办事项组件
         self.text_field.mousePressEvent = lambda e: self.text_field.setText(self.content_text)
         self.text_field.mouseDoubleClickEvent = self.handle_double_click
         self.text_field.setReadOnly(True)
+        self.text_field.setContextMenuPolicy(Qt.NoContextMenu)  # 禁用自带右键菜单，交给父级处理
         
         self.handle_text_show()
         
@@ -119,8 +129,16 @@ class TodoItemWidget(QWidget): # 单个待办事项组件
         
         layout.addWidget(self.checkbox)
         layout.addWidget(self.text_field)
+        # 截止时间指示器（默认隐藏）
+        self._deadline_dot = QLabel("")
+        self._deadline_dot.setFixedWidth(22)
+        self._deadline_dot.setAlignment(Qt.AlignCenter)
+        self._deadline_dot.setStyleSheet("background:transparent; border:none; font-size:13px;")
+        self._deadline_dot.setToolTip("")
+        layout.addWidget(self._deadline_dot)
         layout.addWidget(self.drag_label)
         
+        self._update_deadline_indicator()
         self.auto_wrap_tip()
         
         self.text_field.editingFinished.connect(self.handle_return_pressed)
@@ -242,7 +260,75 @@ class TodoItemWidget(QWidget): # 单个待办事项组件
             )
         self.text_field.setStyleSheet(ss)
         self._cached_tags = None
-        
+
+    # -------------------------------------------------------
+    #  截止时间指示器
+    # -------------------------------------------------------
+    def _update_deadline_indicator(self):
+        """根据 deadline 状态更新指示器图标和颜色"""
+        if not self.deadline:
+            self._deadline_dot.setText("")
+            self._deadline_dot.setToolTip("")
+            return
+        try:
+            dl = datetime.fromisoformat(self.deadline)
+            now = datetime.now()
+            diff = (dl - now).total_seconds()
+            if diff < 0:
+                # 已过期：红色警示
+                self._deadline_dot.setText("🔴")
+                self._deadline_dot.setToolTip(f"已过期 — {self.deadline}")
+            elif diff < 3600:
+                # 1小时内：橙色
+                self._deadline_dot.setText("🟠")
+                mins = int(diff // 60)
+                self._deadline_dot.setToolTip(f"{mins}分钟后到期")
+            elif diff < 86400:
+                # 今天内：黄色
+                self._deadline_dot.setText("🟡")
+                hours = int(diff // 3600)
+                self._deadline_dot.setToolTip(f"{hours}小时后到期")
+            else:
+                # 较远：绿色
+                self._deadline_dot.setText("🟢")
+                days = int(diff // 86400)
+                self._deadline_dot.setToolTip(f"{days}天后到期")
+        except (ValueError, TypeError):
+            self._deadline_dot.setText("")
+            self._deadline_dot.setToolTip("")
+
+    # -------------------------------------------------------
+    #  右键菜单 → 配置详情
+    # -------------------------------------------------------
+    def contextMenuEvent(self, event):
+        """右键打开待办事项详情配置弹窗"""
+        from PySide6.QtWidgets import QDialog
+        from src.views.main_views.todo_detail_dialog import TodoDetailDialog
+
+        dlg = TodoDetailDialog(self)
+        dlg.set_data(
+            deadline=self.deadline,
+            reminder_minutes=self.reminder_minutes,
+            repeat=self.repeat,
+        )
+        if dlg.exec() == QDialog.Accepted:
+            self.set_metadata(**dlg.get_data())
+
+    def set_metadata(
+        self,
+        deadline: Optional[str] = None,
+        reminder_minutes: int = 10,
+        repeat: Optional[str] = None,
+    ):
+        """由外部设置元数据（右键菜单弹窗回调 / 加载时初始化）"""
+        self.deadline = deadline
+        self.reminder_minutes = reminder_minutes
+        self.repeat = repeat
+        self._reminded = False  # 重置提醒标志
+        self._update_deadline_indicator()
+
+    # -------------------------------------------------------
+    #  拖拽 / 删除
     def mousePressEvent(self, event: QMouseEvent):
         if event.button() == Qt.LeftButton:
             # 检查是否点击在拖动标签上
@@ -441,6 +527,14 @@ class TodoPanel(QWidget):
         self.todo_items = []
         self.all_tags = set()  # 存储所有标签
         self.load_todos()
+
+        # ---- 后台提醒定时器（每30秒检查一次） ----
+        self._reminder_timer = QTimer(self)
+        self._reminder_timer.timeout.connect(self._check_reminders)
+        self._reminder_timer.start(30_000)  # 30 秒
+
+        # 防止同一次检查中重复提醒同一项
+        self._reminded_in_cycle: set[int] = set()
     
     def handle_all_area_click(self, event):
         """处理在空白处的点击事件"""
@@ -464,8 +558,8 @@ class TodoPanel(QWidget):
         # new_item.checkbox.clicked.connect(lambda: self.on_checkbox_clicked(new_item))
         
         
-    def add_todo_item(self, text="", is_new=False):
-        todo_widget = TodoItemWidget(text)
+    def add_todo_item(self, text="", is_new=False, deadline=None, reminder_minutes=10, repeat=None):
+        todo_widget = TodoItemWidget(text, deadline=deadline, reminder_minutes=reminder_minutes, repeat=repeat)
         # 插入到倒数第二个位置（在Stretch之前）
         self.todo_layout.insertWidget(self.todo_layout.count() - 1, todo_widget)
         self.todo_items.append(todo_widget)
@@ -690,7 +784,12 @@ class TodoPanel(QWidget):
                 with open(todo_file_source, "r", encoding="utf-8") as f:
                     todos = json.load(f)
                     for todo in todos:
-                        self.add_todo_item(todo["text"])
+                        self.add_todo_item(
+                            todo.get("text", ""),
+                            deadline=todo.get("deadline"),
+                            reminder_minutes=todo.get("reminder_minutes", 10),
+                            repeat=todo.get("repeat"),
+                        )
         except Exception as e:
             print(f"加载待办事项出错: {e}")
         finally:
@@ -703,12 +802,19 @@ class TodoPanel(QWidget):
         for i in range(self.todo_layout.count() - 1):  # 排除最后的Stretch
             widget = self.todo_layout.itemAt(i).widget()
             if isinstance(widget, TodoItemWidget):
-                # print(widget.content_text)
                 if widget.content_text.strip():  # 不保存空文本
-                    todos.append({
+                    entry = {
                         "text": widget.content_text,
-                        "completed": widget.is_completed()
-                    })
+                        "completed": widget.is_completed(),
+                    }
+                    # 扩展字段（仅非默认值时保存，保持文件整洁）
+                    if widget.deadline:
+                        entry["deadline"] = widget.deadline
+                    if widget.reminder_minutes != 10:
+                        entry["reminder_minutes"] = widget.reminder_minutes
+                    if widget.repeat:
+                        entry["repeat"] = widget.repeat
+                    todos.append(entry)
         
         # 保存到文件
         with open(todo_file_source, "w", encoding="utf-8") as f:
@@ -795,3 +901,110 @@ class TodoPanel(QWidget):
         
         # 启动动画
         self.scroll_animation.start()
+
+    # ================================================================
+    #  后台提醒 & 过期清理 & 重复任务再生
+    # ================================================================
+
+    def _check_reminders(self):
+        """定时检查所有待办项：触发提醒 / 自动清理过期 / 重复任务再生"""
+        now = datetime.now()
+        items_changed = False
+        self._reminded_in_cycle.clear()
+
+        for i in range(self.todo_layout.count() - 1):
+            widget = self.todo_layout.itemAt(i).widget()
+            if not isinstance(widget, TodoItemWidget):
+                continue
+            if not widget.deadline:
+                continue
+
+            try:
+                dl = datetime.fromisoformat(widget.deadline)
+            except (ValueError, TypeError):
+                continue
+
+            diff_seconds = (dl - now).total_seconds()
+
+            # 1) 过期自动删除（延迟5分钟后执行，留缓冲）
+            if diff_seconds < -300:  # 超过截止5分钟
+                self._try_regenerate_repeat(widget)
+                # 直接启动删除（不受 is_completed 限制）
+                widget.start_deletion_animation()
+                items_changed = True
+                continue
+
+            # 2) 提醒窗口：截止前 N 分钟内
+            remind_window_start = dl - timedelta(minutes=widget.reminder_minutes)
+            if now >= remind_window_start and not widget._reminded:
+                if id(widget) not in self._reminded_in_cycle:
+                    self._reminded_in_cycle.add(id(widget))
+                    widget._reminded = True
+                    self._show_reminder_notification(widget)
+
+            # 3) 若时间已经过了提醒窗口但还没到截止，重置 _reminded 以允许二次提醒
+            #    （例如用户改了提醒时间后需要重新触发）
+            if now < remind_window_start:
+                widget._reminded = False
+
+        if items_changed:
+            self.save_todos()
+            self.refresh_tags()
+            self.todos_changed.emit()
+
+    def _show_reminder_notification(self, item: TodoItemWidget):
+        """弹出提醒通知"""
+        from src.views.components.notification_popup import notify
+
+        title = "⏰ 待办提醒"
+        try:
+            dl = datetime.fromisoformat(item.deadline)
+            remain = dl - datetime.now()
+            mins = max(0, int(remain.total_seconds() // 60))
+            if mins == 0:
+                message = f"「{item.content_text}」已到期"
+            else:
+                message = f"「{item.content_text}」还有 {mins} 分钟到期"
+        except (ValueError, TypeError):
+            message = f"「{item.content_text}」即将到期"
+
+        notify(title, message, duration=8000)
+
+    def _try_regenerate_repeat(self, item: TodoItemWidget):
+        """如果待办是重复任务，自动生成下一个周期的新项"""
+        if not item.repeat or not item.deadline:
+            return
+        try:
+            dl = datetime.fromisoformat(item.deadline)
+        except (ValueError, TypeError):
+            return
+
+        now = datetime.now()
+        # 计算下一个截止时间
+        if item.repeat == "daily":
+            new_dl = dl + timedelta(days=1)
+            # 如果已经过了多个周期，跳到当前
+            while new_dl < now:
+                new_dl += timedelta(days=1)
+        elif item.repeat == "weekly":
+            new_dl = dl + timedelta(weeks=1)
+            while new_dl < now:
+                new_dl += timedelta(weeks=1)
+        elif item.repeat == "monthly":
+            # 近似：+30天
+            new_dl = dl + timedelta(days=30)
+            while new_dl < now:
+                new_dl += timedelta(days=30)
+        else:
+            return
+
+        # 复制原待办内容，生成新项
+        self.add_todo_item(
+            text=item.content_text,
+            deadline=new_dl.isoformat(),
+            reminder_minutes=item.reminder_minutes,
+            repeat=item.repeat,
+        )
+        # 通知用户
+        from src.views.components.notification_popup import notify
+        notify("🔄 重复任务", f"「{item.content_text}」已自动生成下一周期")
