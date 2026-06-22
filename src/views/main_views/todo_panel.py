@@ -106,6 +106,7 @@ class TodoItemWidget(QWidget): # 单个待办事项组件
         """)
         self.text_field.mousePressEvent = lambda e: self.text_field.setText(self.content_text)
         self.text_field.mouseDoubleClickEvent = self.handle_double_click
+        self.text_field.setReadOnly(True)
         
         self.handle_text_show()
         
@@ -190,11 +191,14 @@ class TodoItemWidget(QWidget): # 单个待办事项组件
         available = self.width() - 55 if self.width() > 80 else 100
         max_width = max(available, 60)
         
+        # blockSignals 防止 setText 触发 textChanged → on_text_changed 将缩略文本写回 content_text
+        self.text_field.blockSignals(True)
         if self._font_metrics.horizontalAdvance(text) > max_width:
             elided_text = self._font_metrics.elidedText(text, Qt.ElideRight, max_width)
             self.text_field.setText(elided_text)
         else:
             self.text_field.setText(text)
+        self.text_field.blockSignals(False)
 
     def on_text_changed(self, event):
         if not self.text_field.isReadOnly():
