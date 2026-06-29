@@ -42,7 +42,7 @@ python -m nuitka --onefile ^
 
 ## 架构
 
-```
+```text
 main.py                     ← 入口：初始化配置→QApp→MainWidget→SystemTray
 src/
 ├── configs/                ← 配置读写（base_config / defaul_config）

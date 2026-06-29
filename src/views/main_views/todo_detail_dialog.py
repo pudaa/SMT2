@@ -305,7 +305,7 @@ class TodoDetailDialog(QDialog):
         pen.setWidthF(1.0)
         p.setPen(pen)
         p.setBrush(Qt.NoBrush)
-        p.drawRoundedRect(0.5, 0.5, w - 1.0, h - 1.0, r, r)
+        p.drawRoundedRect(0, 0, w - 1, h - 1, r, r)
 
         p.end()
 
@@ -345,7 +345,8 @@ class TodoDetailDialog(QDialog):
         if deadline:
             try:
                 dt = datetime.fromisoformat(deadline)
-                qt_dt = QDateTime(dt.year, dt.month, dt.day, dt.hour, dt.minute)
+                from PySide6.QtCore import QDate, QTime
+                qt_dt = QDateTime(QDate(dt.year, dt.month, dt.day), QTime(dt.hour, dt.minute))
                 self.deadline_edit.setDateTime(qt_dt)
             except (ValueError, TypeError):
                 self._clear_deadline()
@@ -383,7 +384,7 @@ class TodoDetailDialog(QDialog):
         self._has_deadline = False
         # 不再禁用 deadline_edit，让用户可以随时重新配置截止时间
 
-    def showEvent(self, event):
+    def showEvent(self, event):  # type: ignore[override]
         super().showEvent(event)
         if self.parent():
             pc = self.parent().mapToGlobal(self.parent().rect().center())

@@ -979,8 +979,11 @@ class TodoPanel(QWidget):
         from src.views.components.notification_popup import notify
 
         title = "待办提醒"
+        deadline_str = item.deadline
+        if not deadline_str:
+            return
         try:
-            dl = datetime.fromisoformat(item.deadline)
+            dl = datetime.fromisoformat(deadline_str)
             remain = dl - datetime.now()
             mins = max(0, int(remain.total_seconds() // 60))
             if mins == 0:
