@@ -13,8 +13,31 @@ pip install jieba pyside6 wmi pywin32 pandas python-docx
 # 开发运行
 python main.py
 
-# Nuitka 打包（单文件）
-python -m nuitka --onefile --enable-plugin=pyside6 --follow-import-to=need --output-dir=output --windows-icon-from-ico=resources/tray.png main.py
+# Nuitka 打包（单文件，优化体积和速度）
+python -m nuitka --onefile ^
+  --output-filename=SMT2.exe ^
+  --output-dir=output ^
+  --enable-plugin=pyside6 ^
+  --include-package-data=jieba ^
+  --include-package=pandas ^
+  --follow-import-to=need ^
+  --nofollow-import-to=torch ^
+  --nofollow-import-to=numba ^
+  --nofollow-import-to=IPython ^
+  --nofollow-import-to=pytest ^
+  --nofollow-import-to=unittest ^
+  --nofollow-import-to=setuptools ^
+  --nofollow-import-to=pip ^
+  --nofollow-import-to=wheel ^
+  --noinclude-setuptools-mode=nofollow ^
+  --noinclude-pytest-mode=nofollow ^
+  --noinclude-unittest-mode=nofollow ^
+  --noinclude-IPython-mode=nofollow ^
+  --lto=yes ^
+  --assume-yes-for-downloads ^
+  --disable-console ^
+  --windows-icon-from-ico=resources/tray.png ^
+  main.py
 ```
 
 ## 架构
@@ -44,10 +67,11 @@ src/
 - **配置**：`AppPaths` 统一管理路径，自动适配开发环境 vs Nuitka `--onefile` 打包（`sys._MEIPASS`）
 - **主题颜色令牌**：字符串键 → `[r, g, b, a]` 值，定义在 `default_properties.json` 的 `colors` 字段中
 - **信号/槽**：PySide6 Signal 命名如 `mode_changed`、`todos_changed`、`component_selected`
+- **禁止使用文本图标（Emoji）**：UI 中不得使用 Emoji 字符作为图标（如 🚀、🔔、🟢、⏰ 等），这类文本图标会让项目有明显 AI 生成质感。统一使用纯文字描述、主题颜色形状、或系统图标资源替代。
 
 ## 注意事项
 
 1. **`resources/requirements.txt` 非标准格式**：内容是 `pip install xxx` 指令而非 `package==version`，无法直接用 `pip install -r` 安装
 2. **`defaul_config` 拼写错误**：文件名和类名缺少 "t"（应为 `default`），这是历史遗留，修改需同步更新所有引用
 3. **jieba 内存问题**：v2.0.2 因 jieba 词典导致 185MB 内存占用，`LightweightTagExtractor`（`src/utils/lightweight_tag_extractor.py`）作为轻量替代方案
-4. **Nuitka 打包**：注意 `--nofollow-import-to=torch --nofollow-import-to=numba` 避免打包不必要的依赖；`--windows-uac-admin` 历史上多次添加/移除
+4. **Nuitka 打包**：`--output-filename=SMT2.exe` 指定输出文件名；`--lto=yes` 启用链接时优化减小体积；`--nofollow-import-to` 排除 torch/numba/IPython/pytest 等不必要依赖；`--noinclude-*-mode=nofollow` 排除标准库测试框架

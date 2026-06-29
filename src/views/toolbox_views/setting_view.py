@@ -14,6 +14,7 @@ from src.utils.app_paths import AppPaths
 from src.themes import theme_manager
 from src.themes.base_theme import CustomTheme
 from src.configs.base_config import get_default_theme, set_default_theme, save_properties, reload_properties
+from src.utils.icon_utils import load_svg_icon
 
 class SettingView(QScrollArea):
     # 信号，当配置更改时发出
@@ -444,11 +445,17 @@ class SettingView(QScrollArea):
         
         # 操作按钮行
         btn_row = QHBoxLayout()
-        save_btn = QPushButton("💾 保存主题")
+        save_btn = QPushButton("  保存主题")
+        save_icon = load_svg_icon("save.svg", 14)
+        if not save_icon.isNull():
+            save_btn.setIcon(save_icon)
         save_btn.clicked.connect(self._save_custom_theme)
         btn_row.addWidget(save_btn)
         
-        delete_btn = QPushButton("🗑 删除主题")
+        delete_btn = QPushButton("  删除主题")
+        delete_icon = load_svg_icon("delete.svg", 14)
+        if not delete_icon.isNull():
+            delete_btn.setIcon(delete_icon)
         delete_btn.setStyleSheet("color: #e05555;")
         delete_btn.clicked.connect(self._delete_custom_theme)
         btn_row.addWidget(delete_btn)

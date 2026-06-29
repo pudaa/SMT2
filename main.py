@@ -44,6 +44,16 @@ def main():
     else:
         print("系统托盘不可用")
     
+    # 延迟启动测试通知弹窗（验证通知系统是否正常）
+    def _startup_test_notification():
+        from src.views.components.notification_popup import notify
+        notify(
+            "SMT2 已启动",
+            "通知系统运行正常，待办提醒功能已就绪",
+            duration=6000,
+        )
+    QTimer.singleShot(2000, _startup_test_notification)
+    
     sys.exit(app.exec())
 
 

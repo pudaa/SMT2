@@ -33,6 +33,7 @@ from PySide6.QtCore import (
     QEasingCurve, Property, QRect
 )
 from PySide6.QtGui import QMouseEvent, QFont
+from src.utils.icon_utils import load_svg_pixmap
 
 
 # ============================================================
@@ -70,6 +71,7 @@ class NotificationPopup(QWidget):
         self._dismissing = False
 
         # 窗口属性
+        # Qt.Tool 无父窗口时可能不显示，由 NotificationManager 负责传入父窗口
         self.setWindowFlags(
             Qt.WindowStaysOnTopHint
             | Qt.FramelessWindowHint
@@ -78,6 +80,8 @@ class NotificationPopup(QWidget):
         )
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setAttribute(Qt.WA_ShowWithoutActivating)
+        # 确保弹窗在任务栏不显示
+        self.setAttribute(Qt.WA_QuitOnClose, False)
 
         self._opacity = 1.0
 
@@ -104,11 +108,13 @@ class NotificationPopup(QWidget):
         layout.setContentsMargins(14, 10, 8, 10)
         layout.setSpacing(8)
 
-        # 左侧图标占位
-        icon_label = QLabel("🔔")
-        icon_label.setFixedWidth(22)
+        # 左侧 SVG 图标
+        icon_label = QLabel()
+        icon_label.setFixedSize(22, 22)
         icon_label.setAlignment(Qt.AlignCenter)
-        icon_label.setStyleSheet("font-size:15px; background:transparent; border:none;")
+        icon_label.setStyleSheet("background:transparent; border:none;")
+        pix = load_svg_pixmap("bell.svg", 16)
+        icon_label.setPixmap(pix)
         layout.addWidget(icon_label)
 
         # 中间文本区域
@@ -224,6 +230,9 @@ class NotificationPopup(QWidget):
         start_pos = QPoint(target_pos.x() + self.width() + 20, target_pos.y())
         self.move(start_pos)
         self.show()
+        self.raise_()
+        # 强制刷新确保窗口可见
+        QApplication.processEvents()
 
         # 滑入动画
         self._slide_anim.setStartValue(start_pos)
@@ -304,6 +313,17 @@ class NotificationManager:
 
     # ---- 公开 API ----
 
+    @staticmethod
+    def _find_main_window():
+        """查找主窗口作为弹窗父窗口（确保 Qt.Tool 能正常显示）"""
+        app = QApplication.instance()
+        if app is None:
+            return None
+        for w in app.topLevelWidgets():
+            if w.isVisible() and w.windowTitle() == "SMT2":
+                return w
+        return None
+
     def notify(
         self,
         title: str,
@@ -312,7 +332,8 @@ class NotificationManager:
         callback: Optional[Callable] = None,
     ) -> NotificationPopup:
         """推送一条通知"""
-        popup = NotificationPopup(title, message, duration, callback)
+        parent = self._find_main_window()
+        popup = NotificationPopup(title, message, duration, callback, parent=parent)
         popup.dismissed.connect(lambda: self._on_popup_dismissed(popup))
 
         # 限制最大数量

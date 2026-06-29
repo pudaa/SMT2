@@ -6,12 +6,6 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
 from PySide6.QtCore import Qt, QMimeData, QByteArray, Signal, QObject, QThread, QTimer
 from PySide6.QtGui import QDragEnterEvent, QDropEvent, QDragMoveEvent, QDrag
 from PySide6.QtWidgets import QProgressDialog
-import pandas as pd
-from docx import Document
-from docx.shared import RGBColor, Pt
-from docx.oxml.ns import qn
-from docx.enum.style import WD_STYLE_TYPE
-from docx.enum.text import WD_ALIGN_PARAGRAPH
 from typing import Optional
 from collections import OrderedDict
 from copy import deepcopy
@@ -424,7 +418,7 @@ class CompositePreviewItemWidget(QWidget):
 class ExcelToWordView(QWidget):
     def __init__(self):
         super().__init__()
-        self.excel_data: Optional[pd.DataFrame] = None
+        self.excel_data: Optional["pd.DataFrame"] = None
         self.preview_columns = OrderedDict()  # 列模式：每列包含多个横向字段
         self.setAcceptDrops(True)  # 启用拖拽功能
         self.init_ui()
@@ -540,6 +534,7 @@ class ExcelToWordView(QWidget):
                 self.load_excel(file_path)
 
     def load_excel(self, file_path):
+        import pandas as pd  # 懒加载，仅工具箱 Excel→Word 功能触发
         try:
             self.excel_data = pd.read_excel(file_path)
             self.initial_label.hide()
@@ -810,6 +805,11 @@ class ExcelToWordView(QWidget):
             """
             修改 doc 中常用内置样式的字体为宋体，颜色为黑色。
             """
+            from docx.shared import RGBColor, Pt
+            from docx.oxml.ns import qn
+            from docx.enum.style import WD_STYLE_TYPE
+            from docx.enum.text import WD_ALIGN_PARAGRAPH
+
             styles = doc.styles
 
             # === 1. 基础段落样式：Normal 已存在，我们只修改它 ===
@@ -912,6 +912,11 @@ class ExcelToWordView(QWidget):
                     
         
         def run(self):
+            from docx import Document  # 懒加载，仅生成文档时触发
+            from docx.shared import RGBColor, Pt
+            from docx.oxml.ns import qn
+            from docx.enum.style import WD_STYLE_TYPE
+            from docx.enum.text import WD_ALIGN_PARAGRAPH
             try:
                 doc = Document()
                 self._apply_chinese_style(doc)

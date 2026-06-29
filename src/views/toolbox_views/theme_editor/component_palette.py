@@ -4,18 +4,21 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QPushButton, QFrame, QFileDialog
 )
 from PySide6.QtCore import Qt, Signal
+from src.utils.icon_utils import load_svg_icon
 
 
 # 可用组件定义
-BUILTIN_COMPONENTS = [    {"type": "background","name": "🎨 背景颜色",  "category": "functional"},    {"type": "time",       "name": "🕐 时间",      "category": "functional"},
-    {"type": "date",       "name": "📅 日期",      "category": "functional"},
-    {"type": "day_ring",   "name": "📊 日进度环",  "category": "functional"},
-    {"type": "week_ring",  "name": "📊 周进度环",  "category": "functional"},
-    {"type": "month_ring", "name": "📊 月进度环",  "category": "functional"},
-    {"type": "year_ring",  "name": "📊 年进度环",  "category": "functional"},
-    {"type": "month_info", "name": "📈 月/年进度",  "category": "functional"},
-    {"type": "todo_line",  "name": "📋 待办提醒",  "category": "functional"},
-    {"type": "divider",    "name": "➖ 分隔线",    "category": "decorative"},
+BUILTIN_COMPONENTS = [
+    {"type": "background", "name": "背景颜色",  "icon": "palette.svg",   "category": "functional"},
+    {"type": "time",       "name": "时间",      "icon": "clock.svg",    "category": "functional"},
+    {"type": "date",       "name": "日期",      "icon": "calendar.svg", "category": "functional"},
+    {"type": "day_ring",   "name": "日进度环",  "icon": "chart.svg",    "category": "functional"},
+    {"type": "week_ring",  "name": "周进度环",  "icon": "chart.svg",    "category": "functional"},
+    {"type": "month_ring", "name": "月进度环",  "icon": "chart.svg",    "category": "functional"},
+    {"type": "year_ring",  "name": "年进度环",  "icon": "chart.svg",    "category": "functional"},
+    {"type": "month_info", "name": "月/年进度",  "icon": "trending.svg", "category": "functional"},
+    {"type": "todo_line",  "name": "待办提醒",   "icon": "clipboard.svg","category": "functional"},
+    {"type": "divider",    "name": "分隔线",     "icon": "divider.svg",  "category": "decorative"},
 ]
 
 
@@ -50,9 +53,12 @@ class ComponentPalette(QWidget):
         for comp in BUILTIN_COMPONENTS:
             if comp["category"] != "functional":
                 continue
-            btn = QPushButton(comp["name"])
+            btn = QPushButton(f"  {comp['name']}")
             btn.setObjectName(f"paletteBtn_{comp['type']}")
             btn.setStyleSheet("text-align: left; padding: 6px 10px;")
+            icon = load_svg_icon(comp.get("icon", ""), 14)
+            if not icon.isNull():
+                btn.setIcon(icon)
             btn.clicked.connect(lambda checked, t=comp["type"]: self.item_requested.emit(t))
             layout.addWidget(btn)
 
@@ -68,9 +74,12 @@ class ComponentPalette(QWidget):
         layout.addWidget(deco_label)
 
         # 导入贴纸按钮
-        sticker_btn = QPushButton("🖼️ 导入贴纸 PNG")
+        sticker_btn = QPushButton("  导入贴纸 PNG")
         sticker_btn.setObjectName("importStickerBtn")
         sticker_btn.setStyleSheet("text-align: left; padding: 8px 10px; font-weight: bold;")
+        sticker_icon = load_svg_icon("image.svg", 14)
+        if not sticker_icon.isNull():
+            sticker_btn.setIcon(sticker_icon)
         sticker_btn.clicked.connect(self._import_sticker)
         layout.addWidget(sticker_btn)
 

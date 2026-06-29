@@ -3,7 +3,7 @@ from __future__ import annotations
 from PySide6.QtGui import QColor, QFont, QPen, QPainter
 from PySide6.QtCore import Qt
 from datetime import datetime
-from src.themes.base_theme import ThemeDefinition, PanelMetrics, PanelCompactMetrics, PanelMiniMetrics
+from src.themes.base_theme import ThemeDefinition, PanelMetrics, PanelCompactMetrics, PanelMiniMetrics, _get_clipboard_pixmap
 
 
 class ModernTheme(ThemeDefinition):
@@ -279,6 +279,13 @@ class ModernTheme(ThemeDefinition):
 
         # ---- 待办文本 ----
         painter.setPen(QColor(*self.get_color("performance_panel_todo_text")))
-        max_todo_w = w - 40
+        max_todo_w = w - 52
         elided = fm.elidedText(todo_text, Qt.ElideRight, max_todo_w)
-        painter.drawText(6, line_y + fm.ascent() + 2, f"📋 {elided}")
+        icon_size = 10
+        icon_pix = _get_clipboard_pixmap(icon_size)
+        # 图标与文本垂直居中
+        text_top = line_y + 2
+        icon_y = text_top + (fm.height() - icon_size) // 2
+        painter.drawPixmap(6, icon_y, icon_pix)
+        text_x = 6 + icon_size + 4  # 图标右侧留 4px 间隙
+        painter.drawText(text_x, line_y + fm.ascent() + 2, elided)

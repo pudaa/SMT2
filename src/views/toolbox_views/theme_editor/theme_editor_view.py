@@ -13,6 +13,7 @@ from src.utils.app_paths import AppPaths
 from .component_palette import ComponentPalette
 from .canvas_widget import ThemeCanvas
 from .property_panel import PropertyPanel
+from src.utils.icon_utils import load_svg_icon
 
 
 class ThemeEditorView(QWidget):
@@ -130,13 +131,19 @@ class ThemeEditorView(QWidget):
 
         layout.addStretch()
 
-        save_btn = QPushButton("💾 保存")
+        save_btn = QPushButton("  保存")
         save_btn.setMaximumWidth(80)
+        save_icon = load_svg_icon("save.svg", 14)
+        if not save_icon.isNull():
+            save_btn.setIcon(save_icon)
         save_btn.clicked.connect(self._save_theme)
         layout.addWidget(save_btn)
 
-        save_as_btn = QPushButton("📁 另存为")
+        save_as_btn = QPushButton("  另存为")
         save_as_btn.setMaximumWidth(80)
+        folder_icon = load_svg_icon("folder.svg", 14)
+        if not folder_icon.isNull():
+            save_as_btn.setIcon(folder_icon)
         save_as_btn.clicked.connect(self._save_theme_as)
         layout.addWidget(save_as_btn)
 

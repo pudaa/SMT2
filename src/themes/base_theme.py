@@ -91,6 +91,16 @@ class StickerData:
             self.sticker_id = uuid.uuid4().hex[:12]
 
 
+def _get_clipboard_pixmap(size: int = 10):
+    """返回缓存的 clipboard.svg 的 QPixmap"""
+    cache_key = f"clipboard_{size}"
+    _cache = globals().setdefault("_pixmap_cache", {})
+    if cache_key not in _cache:
+        from src.utils.icon_utils import load_svg_pixmap
+        _cache[cache_key] = load_svg_pixmap("clipboard.svg", size)
+    return _cache[cache_key]
+
+
 class ThemeDefinition(ABC):
     """主题抽象基类
     
@@ -309,11 +319,16 @@ class ThemeDefinition(ABC):
             todo_text = getattr(data_provider, 'first_todo_text', '')
             if todo_text:
                 fm = painter.fontMetrics()
-                max_w = max(pw - 20, 10)
+                max_w = max(pw - 32, 10)
                 elided = fm.elidedText(todo_text, Qt.ElideRight, max_w)
-                text = f"📋 {elided}"
-                tw = fm.horizontalAdvance(text)
-                painter.drawText(cx - tw // 2, cy, text)
+                # 在文本左侧绘制 SVG 剪贴板图标（与文本垂直居中）
+                icon_size = 10
+                icon_pix = _get_clipboard_pixmap(icon_size)
+                text_w = fm.horizontalAdvance(elided)
+                icon_x = cx - text_w // 2 - icon_size - 4
+                icon_y = cy - fm.ascent() + (fm.height() - icon_size) // 2
+                painter.drawPixmap(int(icon_x), int(icon_y), icon_pix)
+                painter.drawText(cx - text_w // 2, cy, elided)
 
         painter.restore()
 

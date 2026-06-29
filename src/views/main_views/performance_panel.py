@@ -141,4 +141,3 @@ class PerformancePanel(QWidget):
         self.week_progress = PerformanceMonitor.get_week_progress()
         self.month_progress = PerformanceMonitor.get_month_progress()
         self.year_progress = PerformanceMonitor.get_year_progress()
-        self.year_progress = PerformanceMonitor.get_year_progress()

@@ -46,6 +46,7 @@ class TodoItemWidget(QWidget): # 单个待办事项组件
         self.reminder_minutes: int = reminder_minutes    # 提前提醒分钟数
         self.repeat: Optional[str] = repeat              # 'daily' / 'weekly' / 'monthly' / None
         self._reminded: bool = False                     # 本次提醒是否已触发（避免重复弹窗）
+        self._overdue: bool = False                      # 是否已过期（显示删除线样式）
 
         from src.themes import theme_manager
         m = theme_manager.get_panel_metrics("normal")
@@ -129,16 +130,10 @@ class TodoItemWidget(QWidget): # 单个待办事项组件
         
         layout.addWidget(self.checkbox)
         layout.addWidget(self.text_field)
-        # 截止时间指示器（默认隐藏）
-        self._deadline_dot = QLabel("")
-        self._deadline_dot.setFixedWidth(22)
-        self._deadline_dot.setAlignment(Qt.AlignCenter)
-        self._deadline_dot.setStyleSheet("background:transparent; border:none; font-size:13px;")
-        self._deadline_dot.setToolTip("")
-        layout.addWidget(self._deadline_dot)
         layout.addWidget(self.drag_label)
         
-        self._update_deadline_indicator()
+        # 初始化时检查一次过期状态（无 deadline_dot，仅控制删除线）
+        self._update_overdue_state()
         self.auto_wrap_tip()
         
         self.text_field.editingFinished.connect(self.handle_return_pressed)
@@ -156,6 +151,7 @@ class TodoItemWidget(QWidget): # 单个待办事项组件
         w = self.width()
         if w != self._last_width and w > 0:
             self._last_width = w
+            # 延迟到布局完成后再执行，确保 text_field.width() 已更新
             QTimer.singleShot(0, self.handle_text_show)
 
     def get_text(self):
@@ -198,16 +194,20 @@ class TodoItemWidget(QWidget): # 单个待办事项组件
         self.setToolTip(self._cached_tooltip)
             
     def handle_text_show(self):
-        """处理文本显示，动态计算可用宽度"""
+        """处理文本显示，基于 QLineEdit 实际宽度动态省略"""
         text = self.content_text
         
         # 缓存字体度量对象
         if self._font_metrics is None:
             self._font_metrics = QFontMetrics(self.text_field.font())
         
-        # 动态计算可用宽度：widget总宽 - checkbox(23) - drag_label(~28) - spacing
-        available = self.width() - 55 if self.width() > 80 else 100
-        max_width = max(available, 60)
+        # 使用 text_field 的实际 widget 宽度，减去 QSS padding（左右各 4px）
+        tf_w = self.text_field.width()
+        if tf_w <= 0:
+            # 布局尚未就绪时的回退估算：
+            # checkbox(~20) + spacing(5×3=15) + deadline_dot(0初始) + drag_label(~28) ≈ 63
+            tf_w = self.width() - 63
+        max_width = max(tf_w - 8, 30)  # 至少保留 30px 显示空间
         
         # blockSignals 防止 setText 触发 textChanged → on_text_changed 将缩略文本写回 content_text
         self.text_field.blockSignals(True)
@@ -252,6 +252,13 @@ class TodoItemWidget(QWidget): # 单个待办事项组件
                 f"color: {get_qss_color('todo_panel_todoitem_lineedit_finished', '#888')}; "
                 f"font-size: {fs}px; padding: 4px; text-decoration: line-through; }}"
             )
+        elif self._overdue:
+            # 未完成但已过期 → 继续保留删除线样式
+            ss = (
+                f"QLineEdit {{ background-color: transparent; border: none; "
+                f"color: {get_qss_color('todo_panel_todoitem_lineedit_finished', '#888')}; "
+                f"font-size: {fs}px; padding: 4px; text-decoration: line-through; }}"
+            )
         else:
             ss = (
                 f"QLineEdit {{ background-color: transparent; border: none; "
@@ -262,40 +269,18 @@ class TodoItemWidget(QWidget): # 单个待办事项组件
         self._cached_tags = None
 
     # -------------------------------------------------------
-    #  截止时间指示器
+    #  截止状态管理（无视觉指示器，仅控制删除线样式）
     # -------------------------------------------------------
-    def _update_deadline_indicator(self):
-        """根据 deadline 状态更新指示器图标和颜色"""
+    def _update_overdue_state(self):
+        """根据 deadline 更新过期状态，仅用于删除线样式控制"""
         if not self.deadline:
-            self._deadline_dot.setText("")
-            self._deadline_dot.setToolTip("")
+            self.set_overdue(False)
             return
         try:
             dl = datetime.fromisoformat(self.deadline)
-            now = datetime.now()
-            diff = (dl - now).total_seconds()
-            if diff < 0:
-                # 已过期：红色警示
-                self._deadline_dot.setText("🔴")
-                self._deadline_dot.setToolTip(f"已过期 — {self.deadline}")
-            elif diff < 3600:
-                # 1小时内：橙色
-                self._deadline_dot.setText("🟠")
-                mins = int(diff // 60)
-                self._deadline_dot.setToolTip(f"{mins}分钟后到期")
-            elif diff < 86400:
-                # 今天内：黄色
-                self._deadline_dot.setText("🟡")
-                hours = int(diff // 3600)
-                self._deadline_dot.setToolTip(f"{hours}小时后到期")
-            else:
-                # 较远：绿色
-                self._deadline_dot.setText("🟢")
-                days = int(diff // 86400)
-                self._deadline_dot.setToolTip(f"{days}天后到期")
+            self.set_overdue(dl < datetime.now())
         except (ValueError, TypeError):
-            self._deadline_dot.setText("")
-            self._deadline_dot.setToolTip("")
+            self.set_overdue(False)
 
     # -------------------------------------------------------
     #  右键菜单 → 配置详情
@@ -314,6 +299,30 @@ class TodoItemWidget(QWidget): # 单个待办事项组件
         if dlg.exec() == QDialog.Accepted:
             self.set_metadata(**dlg.get_data())
 
+    def set_overdue(self, overdue: bool):
+        """设置过期状态并更新文本样式（删除线）"""
+        self._overdue = overdue
+        # 已完成项保留完成样式，不覆盖
+        if self.is_completed():
+            return
+        from src.themes import theme_manager
+        m = theme_manager.get_panel_metrics("normal")
+        fs = m.todo_font_size
+        if overdue:
+            # 过期样式：删除线 + 暗红色
+            ss = (
+                f"QLineEdit {{ background-color: transparent; border: none; "
+                f"color: {get_qss_color('todo_panel_todoitem_lineedit_finished', '#888')}; "
+                f"font-size: {fs}px; padding: 4px; text-decoration: line-through; }}"
+            )
+        else:
+            ss = (
+                f"QLineEdit {{ background-color: transparent; border: none; "
+                f"color: {get_qss_color('todo_panel_todoitem_lineedit_foreground', '#ccc')}; "
+                f"font-size: {fs}px; padding: 4px; text-decoration: none; }}"
+            )
+        self.text_field.setStyleSheet(ss)
+
     def set_metadata(
         self,
         deadline: Optional[str] = None,
@@ -325,7 +334,7 @@ class TodoItemWidget(QWidget): # 单个待办事项组件
         self.reminder_minutes = reminder_minutes
         self.repeat = repeat
         self._reminded = False  # 重置提醒标志
-        self._update_deadline_indicator()
+        self._update_overdue_state()
 
     # -------------------------------------------------------
     #  拖拽 / 删除
@@ -575,8 +584,6 @@ class TodoPanel(QWidget):
         # 连接拖动信号，使用lambda函数修改self.is_dragging的值为True或False
         todo_widget.isDraggingOn.connect(lambda: setattr(self, 'is_dragging', True))
         todo_widget.isDraggingDown.connect(lambda: setattr(self, 'is_dragging', False))
-        todo_widget.isDraggingOn.connect(lambda *args: setattr(self, 'is_dragging', True))
-        todo_widget.isDraggingDown.connect(lambda *args: setattr(self, 'is_dragging', False))
             
         # 连接删除完成信号
         todo_widget.deletionCompleted.connect(self.on_item_deletion_completed)
@@ -907,7 +914,7 @@ class TodoPanel(QWidget):
     # ================================================================
 
     def _check_reminders(self):
-        """定时检查所有待办项：触发提醒 / 自动清理过期 / 重复任务再生"""
+        """定时检查所有待办项：触发提醒 / 过期标记删除线 / 重复任务再生"""
         now = datetime.now()
         items_changed = False
         self._reminded_in_cycle.clear()
@@ -917,6 +924,9 @@ class TodoPanel(QWidget):
             if not isinstance(widget, TodoItemWidget):
                 continue
             if not widget.deadline:
+                # 无截止时间 → 清除过期标记
+                if widget._overdue:
+                    widget.set_overdue(False)
                 continue
 
             try:
@@ -926,26 +936,30 @@ class TodoPanel(QWidget):
 
             diff_seconds = (dl - now).total_seconds()
 
-            # 1) 过期自动删除（延迟5分钟后执行，留缓冲）
-            if diff_seconds < -300:  # 超过截止5分钟
-                self._try_regenerate_repeat(widget)
-                # 直接启动删除（不受 is_completed 限制）
-                widget.start_deletion_animation()
-                items_changed = True
-                continue
+            # 1) 已过期 → 标记删除线样式（不自动删除）
+            if diff_seconds < 0:
+                if not widget._overdue:
+                    widget.set_overdue(True)
+                    self._try_regenerate_repeat(widget)
+                    items_changed = True
+                # 仍然检查提醒窗口（以防提醒恰好卡在过期瞬间）
+                # 但不再自动删除
+            else:
+                # 未过期 → 清除过期标记
+                if widget._overdue:
+                    widget.set_overdue(False)
 
-            # 2) 提醒窗口：截止前 N 分钟内
-            remind_window_start = dl - timedelta(minutes=widget.reminder_minutes)
-            if now >= remind_window_start and not widget._reminded:
-                if id(widget) not in self._reminded_in_cycle:
-                    self._reminded_in_cycle.add(id(widget))
-                    widget._reminded = True
-                    self._show_reminder_notification(widget)
+                # 2) 提醒窗口：截止前 N 分钟内
+                remind_window_start = dl - timedelta(minutes=widget.reminder_minutes)
+                if now >= remind_window_start and not widget._reminded:
+                    if id(widget) not in self._reminded_in_cycle:
+                        self._reminded_in_cycle.add(id(widget))
+                        widget._reminded = True
+                        self._show_reminder_notification(widget)
 
-            # 3) 若时间已经过了提醒窗口但还没到截止，重置 _reminded 以允许二次提醒
-            #    （例如用户改了提醒时间后需要重新触发）
-            if now < remind_window_start:
-                widget._reminded = False
+                # 3) 若时间还在提醒窗口之前，重置 _reminded 以允许二次提醒
+                if now < remind_window_start:
+                    widget._reminded = False
 
         if items_changed:
             self.save_todos()
@@ -956,7 +970,7 @@ class TodoPanel(QWidget):
         """弹出提醒通知"""
         from src.views.components.notification_popup import notify
 
-        title = "⏰ 待办提醒"
+        title = "待办提醒"
         try:
             dl = datetime.fromisoformat(item.deadline)
             remain = dl - datetime.now()
@@ -1007,4 +1021,4 @@ class TodoPanel(QWidget):
         )
         # 通知用户
         from src.views.components.notification_popup import notify
-        notify("🔄 重复任务", f"「{item.content_text}」已自动生成下一周期")
+        notify("重复任务", f"「{item.content_text}」已自动生成下一周期")

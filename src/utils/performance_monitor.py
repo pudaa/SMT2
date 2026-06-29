@@ -1,4 +1,4 @@
-import psutil
+import psutil # type: ignore
 import shutil
 import platform
 from datetime import datetime
