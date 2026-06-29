@@ -1,7 +1,7 @@
 from src.configs.base_config import get_extractor_model
 from typing import List
 from src.utils.lightweight_tag_extractor import LightweightTagExtractor
-from src.configs.base_config import get_color, get_todo_poses
+from src.configs.base_config import get_todo_poses
 
 JIEBA_AVAILABLE = get_extractor_model() == 'jieba'
 

@@ -128,10 +128,39 @@ class ThemeManager:
     def get_all_colors(self) -> dict[str, list[int]]:
         """获取当前主题的所有已知颜色令牌（用于设置界面预览）"""
         known_tokens = [
-            "performance_panel_background", "performance_panel_shadow",
-            "performance_panel_time", "performance_panel_progress_ring_background",
-            "performance_panel_progress_ring_foreground", "performance_panel_progress_title",
+            # ---- PerformancePanel ----
+            "performance_panel_background",
+            "performance_panel_shadow",
+            "performance_panel_time",
+            "performance_panel_date",
+            "performance_panel_sub_info",
+            "performance_panel_divider",
+            "performance_panel_todo_text",
+            "performance_panel_progress_ring_background",
+            "performance_panel_progress_ring_foreground",
+            "performance_panel_progress_title",
             "performance_panel_progress_text",
+            # ---- TodoPanel ----
+            "todo_panel_todoitem_background",
+            "todo_panel_todoitem_foreground",
+            "todo_panel_todoitem_checkbox_unchecked_border",
+            "todo_panel_todoitem_checkbox_checked_border",
+            "todo_panel_todoitem_checkbox_checked_background",
+            "todo_panel_todoitem_lineedit_foreground",
+            "todo_panel_todoitem_lineedit_focus",
+            "todo_panel_todoitem_lineedit_finished",
+            "todo_panel_todoitem_draglabel",
+            "todo_panel_titlelabel_foreground",
+            "todo_panel_titlelabel_background",
+            "todo_panel_tagscrollarea_background",
+            "todo_panel_tagbutton_background",
+            "todo_panel_tagbutton_foreground",
+            "todo_panel_tagbutton_checked_background",
+            "todo_panel_tagbutton_checked_foreground",
+            "todo_panel_tagbutton_check_hover_background",
+            "todo_panel_tagbutton_checked_hover_background",
+            "todo_panel_scrollarea_background",
+            "todo_panel_scrollbar_background",
         ]
         return {t: self.get_color(t) for t in known_tokens}
 

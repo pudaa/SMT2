@@ -7,7 +7,15 @@ import functools
 import platform
 from src.utils.app_paths import AppPaths
 
-class ThemeManager(QObject):
+class QssThemeManager(QObject):
+    """工具箱 QSS 主题管理器（旧系统，独立于 src/themes/ 的新策略模式主题）
+
+    职责:
+      - 加载 resources/themes/*.qss 文件
+      - 切换工具箱窗口的明/暗主题
+      - 应用 Windows DWM 深色模式到对话框
+    注意: 与 src/themes/ 中的新 ThemeManager 是两套独立系统。
+    """
     def __init__(self):
         super().__init__()
         self.is_dark_theme = False

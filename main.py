@@ -1,7 +1,5 @@
 import sys
 import os
-import psutil
-import ctypes
 from PySide6.QtWidgets import QApplication, QSystemTrayIcon
 from PySide6.QtCore import Qt, QTimer
 from src.views.main_views.main_widget import MainWidget

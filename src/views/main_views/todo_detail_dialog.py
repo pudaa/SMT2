@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QDateTime, QPoint, QRectF
 from PySide6.QtGui import QMouseEvent, QPainter, QBrush, QColor, QPen
 from src.configs.base_config import get_qss_color
+from PySide6.QtWidgets import QLayout
 
 
 _REPEAT_OPTIONS = [
@@ -52,10 +53,13 @@ class TodoDetailDialog(QDialog):
         )
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setModal(True)
-        self.setFixedSize(175, 170)
 
         self._setup_ui()
         self._apply_theme()
+        # 根据内容自动确定尺寸，避免高缩放率下裁剪
+        layout = self.layout()
+        if layout:
+            layout.setSizeConstraint(QLayout.SetFixedSize)
 
     # ================================================================
     #  UI
@@ -348,7 +352,7 @@ class TodoDetailDialog(QDialog):
 
         self.remind_combo.setCurrentIndex(
             next((i for i in range(self.remind_combo.count())
-                  if self.remind_combo.itemData(i) == reminder_minutes), 1)
+                  if self.remind_combo.itemData(i) == reminder_minutes), 2)
         )
 
         idx = self.repeat_combo.findData(repeat or "none")

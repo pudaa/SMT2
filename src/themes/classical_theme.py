@@ -19,6 +19,11 @@ class ClassicalTheme(ThemeDefinition):
         "performance_panel_progress_ring_foreground": [200, 200, 200],
         "performance_panel_progress_title":           [200, 200, 200],
         "performance_panel_progress_text":            [200, 200, 200],
+        "performance_panel_date":                     [190, 190, 190],
+        "performance_panel_sub_info":                 [150, 150, 150],
+        "performance_panel_divider":                  [100, 100, 100, 80],
+        "performance_panel_todo_text":                [170, 170, 170],
+        "performance_panel_todo_icon":                [170, 170, 170],
         # ---- TodoPanel ----
         "todo_panel_todoitem_background":                     [50, 50, 50, 100],
         "todo_panel_todoitem_foreground":                     [204, 204, 204],

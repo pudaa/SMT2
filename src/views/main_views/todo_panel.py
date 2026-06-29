@@ -705,7 +705,6 @@ class TodoPanel(QWidget):
             self.tag_scroll_area.setVisible(True)
         else:
             self.tag_scroll_area.setVisible(False)
-            self.tag_scroll_area.setVisible(False)
     
     
     def _create_tag_button(self, tag):
@@ -791,12 +790,16 @@ class TodoPanel(QWidget):
                 with open(todo_file_source, "r", encoding="utf-8") as f:
                     todos = json.load(f)
                     for todo in todos:
-                        self.add_todo_item(
+                        widget = self.add_todo_item(
                             todo.get("text", ""),
                             deadline=todo.get("deadline"),
                             reminder_minutes=todo.get("reminder_minutes", 10),
                             repeat=todo.get("repeat"),
                         )
+                        # 恢复完成状态
+                        if todo.get("completed", False):
+                            widget.checkbox.setChecked(True)
+                            widget.on_checkbox_clicked()
         except Exception as e:
             print(f"加载待办事项出错: {e}")
         finally:
@@ -898,6 +901,10 @@ class TodoPanel(QWidget):
         # 如果已经在底部，直接返回
         if scrollbar.value() == target_value:
             return
+        
+        # 先停止上一次动画，避免竞争
+        if hasattr(self, 'scroll_animation') and self.scroll_animation is not None:
+            self.scroll_animation.stop()
             
         # 创建平滑滚动动画
         self.scroll_animation = QPropertyAnimation(scrollbar, b"value")
@@ -942,23 +949,26 @@ class TodoPanel(QWidget):
                     widget.set_overdue(True)
                     self._try_regenerate_repeat(widget)
                     items_changed = True
-                # 仍然检查提醒窗口（以防提醒恰好卡在过期瞬间）
-                # 但不再自动删除
+                # 过期后重置提醒标志，以便用户修改截止时间后重新触发
+                widget._reminded = False
             else:
                 # 未过期 → 清除过期标记
                 if widget._overdue:
                     widget.set_overdue(False)
 
                 # 2) 提醒窗口：截止前 N 分钟内
-                remind_window_start = dl - timedelta(minutes=widget.reminder_minutes)
-                if now >= remind_window_start and not widget._reminded:
-                    if id(widget) not in self._reminded_in_cycle:
-                        self._reminded_in_cycle.add(id(widget))
-                        widget._reminded = True
-                        self._show_reminder_notification(widget)
-
-                # 3) 若时间还在提醒窗口之前，重置 _reminded 以允许二次提醒
-                if now < remind_window_start:
+                if widget.reminder_minutes > 0:
+                    remind_window_start = dl - timedelta(minutes=widget.reminder_minutes)
+                    if now >= remind_window_start and not widget._reminded:
+                        if id(widget) not in self._reminded_in_cycle:
+                            self._reminded_in_cycle.add(id(widget))
+                            widget._reminded = True
+                            self._show_reminder_notification(widget)
+                    elif now < remind_window_start:
+                        # 尚未进入提醒窗口 → 重置 _reminded 允许二次提醒
+                        widget._reminded = False
+                else:
+                    # "不提醒"模式 → 保持标志位干净
                     widget._reminded = False
 
         if items_changed:
@@ -1005,10 +1015,16 @@ class TodoPanel(QWidget):
             while new_dl < now:
                 new_dl += timedelta(weeks=1)
         elif item.repeat == "monthly":
-            # 近似：+30天
-            new_dl = dl + timedelta(days=30)
-            while new_dl < now:
-                new_dl += timedelta(days=30)
+            # 使用 dateutil.relativedelta 精确加一月（若不可用则退化为 +30 天）
+            try:
+                from dateutil.relativedelta import relativedelta
+                new_dl = dl + relativedelta(months=1)
+                while new_dl < now:
+                    new_dl += relativedelta(months=1)
+            except ImportError:
+                new_dl = dl + timedelta(days=30)
+                while new_dl < now:
+                    new_dl += timedelta(days=30)
         else:
             return
 

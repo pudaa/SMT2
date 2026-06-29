@@ -36,6 +36,7 @@ history/
 
 # IDE
 .vscode/
+docs/
 
 # Environment files
 .env
