@@ -10,7 +10,10 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QPoint, Signal, QThread, QObject, QTimer, QPropertyAnimation, QEasingCurve
 from PySide6.QtGui import QMouseEvent, QFontMetrics, QWheelEvent, QAction
 from src.utils.todo_tag_extractor import TodoTagExtractor
-from src.configs.base_config import get_qss_color, get_todo_file_name
+from src.configs.base_config import get_todo_file_name
+from src.themes import theme_manager as _tm
+# 保持与旧代码中 get_qss_color() 一致的调用方式，底层已改为 theme_manager
+get_qss_color = _tm.get_qss_color
 
 class TagRefreshWorker(QObject):
     """异步刷新标签的worker"""
@@ -48,8 +51,7 @@ class TodoItemWidget(QWidget): # 单个待办事项组件
         self._reminded: bool = False                     # 本次提醒是否已触发（避免重复弹窗）
         self._overdue: bool = False                      # 是否已过期（显示删除线样式）
 
-        from src.themes import theme_manager
-        m = theme_manager.get_panel_metrics("normal")
+        m = _tm.get_panel_metrics("normal")
         self.setFixedHeight(m.todo_item_height)
         self.setStyleSheet(f"""
             QToolTip {{
@@ -243,8 +245,7 @@ class TodoItemWidget(QWidget): # 单个待办事项组件
         
     def on_checkbox_clicked(self):
         """复选框状态改变时的处理，使用缓存样式"""
-        from src.themes import theme_manager
-        m = theme_manager.get_panel_metrics("normal")
+        m = _tm.get_panel_metrics("normal")
         fs = m.todo_font_size
         if self.checkbox.isChecked():
             ss = (
@@ -305,8 +306,7 @@ class TodoItemWidget(QWidget): # 单个待办事项组件
         # 已完成项保留完成样式，不覆盖
         if self.is_completed():
             return
-        from src.themes import theme_manager
-        m = theme_manager.get_panel_metrics("normal")
+        m = _tm.get_panel_metrics("normal")
         fs = m.todo_font_size
         if overdue:
             # 过期样式：删除线 + 暗红色
@@ -453,8 +453,7 @@ class TodoPanel(QWidget):
         self.selected_tags = set()  # 存储选中的标签
         self.tag_refresh_in_progress = False  # 标签刷新进行中标志
         
-        from src.themes import theme_manager
-        m = theme_manager.get_panel_metrics("normal")
+        m = _tm.get_panel_metrics("normal")
         br = m.todo_border_radius
         
         layout = QVBoxLayout(self)
@@ -709,8 +708,7 @@ class TodoPanel(QWidget):
     
     def _create_tag_button(self, tag):
         """创建标签按钮，提取公共逻辑"""
-        from src.themes import theme_manager
-        m = theme_manager.get_panel_metrics("normal")
+        m = _tm.get_panel_metrics("normal")
         
         tag_button = QToolButton()
         tag_button.setText(tag)

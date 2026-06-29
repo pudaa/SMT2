@@ -16,6 +16,7 @@ from src.themes.base_theme import (
 from src.themes.classical_theme import ClassicalTheme
 from src.themes.modern_theme import ModernTheme
 from src.utils.app_paths import AppPaths
+from src.utils.theme_manager import QssThemeManager
 
 
 # ============================================================
@@ -43,6 +44,11 @@ class ThemeManager:
         self._listeners: list[Callable] = []  # 主题切换回调
         self._custom_themes: dict[str, CustomTheme] = {}
         self._load_custom_themes()
+        # 工具箱 QSS/DWM 子系统（旧 QssThemeManager 收敛到此）
+        self._qss = QssThemeManager()
+        self._qss.initialize()
+        # 默认深色主题 → 同步 DWM
+        self._qss.is_dark_theme = True
 
     # ---- 属性 ----
 
@@ -68,6 +74,16 @@ class ThemeManager:
 
     # ---- 切换主题 ----
 
+    # ---- 工具箱 QSS / DWM 子系统桥接 ----
+
+    def get_qss_theme(self) -> str:
+        """获取工具箱窗口的 QSS 样式字符串"""
+        return self._qss.get_current_theme()
+
+    def apply_dwm_to_window(self, window):
+        """对指定窗口应用 Windows DWM 深色/浅色模式"""
+        self._qss.apply_theme_to_window(window)
+
     def set_theme(self, name: str) -> bool:
         """切换到指定主题，返回是否成功"""
         if name == self._current_theme_name:
@@ -78,6 +94,7 @@ class ThemeManager:
         if cls:
             self._current_theme_name = name
             self._current_theme = cls()
+            self._sync_qss()
             self._notify_listeners()
             return True
 
@@ -86,10 +103,16 @@ class ThemeManager:
         if ct:
             self._current_theme_name = name
             self._current_theme = ct
+            self._sync_qss()
             self._notify_listeners()
             return True
 
         return False
+
+    def _sync_qss(self):
+        """切换主题时同步工具箱 QSS/DWM（深色主题→深色模式）"""
+        # 内置主题都是深色；自定义主题暂定也为深色
+        self._qss.is_dark_theme = True
 
     # ---- 自定义主题管理 ----
 
@@ -164,14 +187,24 @@ class ThemeManager:
         ]
         return {t: self.get_color(t) for t in known_tokens}
 
-    def get_qss_color(self, token: str, default: Optional[list[int]] = None) -> str:
+    def get_qss_color(self, token: str, default=None) -> str:
         """将颜色令牌转换为 QSS rgb/rgba 字符串"""
+        if default is None:
+            default = [200, 200, 200]
         color = self.get_color(token, default)
+        # 支持字符串类型的直接返回值（如 "#ccc" 兼容）
+        if isinstance(color, str):
+            return color
         if len(color) == 3:
             return f"rgb({color[0]}, {color[1]}, {color[2]})"
         elif len(color) >= 4:
             return f"rgba({color[0]}, {color[1]}, {color[2]}, {color[3]})"
-        return f"rgb({color[0]}, {color[1]}, {color[2]})"
+        if isinstance(default, list):
+            if len(default) == 3:
+                return f"rgb({default[0]}, {default[1]}, {default[2]})"
+            elif len(default) >= 4:
+                return f"rgba({default[0]}, {default[1]}, {default[2]}, {default[3]})"
+        return str(default)
 
     # ---- 面板尺寸 ----
 

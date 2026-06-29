@@ -9,7 +9,7 @@ from .setting_view import SettingView
 from .etoword_view import ExcelToWordView
 from .theme_editor import ThemeEditorView
 from src.views.components.switch import Switch
-from src.utils.theme_manager import QssThemeManager
+from src.themes import theme_manager as app_theme_mgr
 
 
 class ToolBoxWindow(QWidget):
@@ -24,8 +24,7 @@ class ToolBoxWindow(QWidget):
         # 设置窗口图标
         self.setWindowIcon(QIcon("resources/tray.png"))
         
-        # 初始化工具箱 QSS 主题管理器
-        self.qss_theme_mgr = QssThemeManager()
+        # 工具条 QSS/DWM 由 app_theme_mgr 统一管理
         
         # 初始化主题状态
         self.is_dark_theme = False
@@ -266,13 +265,13 @@ class ToolBoxWindow(QWidget):
     
     def apply_stylesheet(self):
         """应用样式表"""
-        theme_style = self.qss_theme_mgr.get_current_theme()
-        self.setStyleSheet(theme_style)
+        self.setStyleSheet(app_theme_mgr.get_qss_theme())
 
     def toggle_theme(self):
         """切换明暗主题"""
-        theme_style = self.qss_theme_mgr.toggle_theme()
-        self.is_dark_theme = self.qss_theme_mgr.is_dark_theme
-        self.qss_theme_mgr.apply_theme_to_window(self)
+        # 通过 app_theme_mgr 内部 QssThemeManager 切换
+        app_theme_mgr._qss.toggle_theme()
+        self.is_dark_theme = app_theme_mgr._qss.is_dark_theme
+        app_theme_mgr.apply_dwm_to_window(self)
         self.apply_stylesheet()
 

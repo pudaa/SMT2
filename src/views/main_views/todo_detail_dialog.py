@@ -14,7 +14,9 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, QDateTime, QPoint, QRectF
 from PySide6.QtGui import QMouseEvent, QPainter, QBrush, QColor, QPen
-from src.configs.base_config import get_qss_color
+from src.themes import theme_manager as _tm
+# 保持与旧代码中 get_qss_color() 一致的调用方式，底层已改为 theme_manager
+get_qss_color = _tm.get_qss_color
 from PySide6.QtWidgets import QLayout
 
 
